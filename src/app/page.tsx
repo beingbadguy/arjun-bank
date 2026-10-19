@@ -1,69 +1,96 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+"use client";
+
+import React, { useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { useAuthStore } from "@/store/useAuthStore";
+import { useWorkspaceStore, VALID_TABS, WorkspaceTab } from "@/store/useWorkspaceStore";
+import { LoginView } from "@/components/auth/LoginView";
+import { Sidebar } from "@/components/layout/Sidebar";
+import { Header } from "@/components/layout/Header";
+import { OverviewView } from "@/components/views/OverviewView";
+import { CompanySearchView } from "@/components/views/CompanySearchView";
+import { PinCodeSearchView } from "@/components/views/PinCodeSearchView";
+import { CibilRelookView } from "@/components/views/CibilRelookView";
+import { EmiCalculatorView } from "@/components/views/EmiCalculatorView";
+import { EligibilityCheckView } from "@/components/views/EligibilityCheckView";
+import { PdfToolsView } from "@/components/views/PdfToolsView";
+import { DataUpdateView } from "@/components/views/DataUpdateView";
+import { AdminAccessView } from "@/components/views/AdminAccessView";
+
+function UrlTabSync() {
+  const searchParams = useSearchParams();
+  const { activeTab, setActiveTab } = useWorkspaceStore();
+
+  useEffect(() => {
+    const tabParam = searchParams.get("tab") as WorkspaceTab | null;
+    if (tabParam && VALID_TABS.includes(tabParam) && tabParam !== activeTab) {
+      setActiveTab(tabParam, false);
+    }
+  }, [searchParams, activeTab, setActiveTab]);
+
+  return null;
+}
 
 export default function Home() {
+  const { isAuthenticated, isLoading, fetchMe } = useAuthStore();
+  const { activeTab } = useWorkspaceStore();
+
+  useEffect(() => {
+    fetchMe();
+  }, [fetchMe]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#F8F9F5] gap-4">
+        <div className="w-12 h-12 rounded-xl bg-[#163A2C] text-[#DCE8D7] flex items-center justify-center font-bold text-lg font-mono shadow-xs animate-pulse">
+          ag.
+        </div>
+        <div className="text-xs font-semibold text-[#829283] tracking-wide">
+          Verifying security credentials &amp; workspace session...
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <LoginView />;
+  }
+
+  const renderCurrentView = () => {
+    switch (activeTab) {
+      case "overview":
+        return <OverviewView />;
+      case "company-search":
+        return <CompanySearchView />;
+      case "pin-search":
+        return <PinCodeSearchView />;
+      case "cibil-relook":
+        return <CibilRelookView />;
+      case "emi-calc":
+        return <EmiCalculatorView />;
+      case "eligibility":
+        return <EligibilityCheckView />;
+      case "pdf-tools":
+        return <PdfToolsView />;
+      case "data-update":
+        return <DataUpdateView />;
+      case "admin-access":
+        return <AdminAccessView />;
+      default:
+        return <OverviewView />;
+    }
+  };
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>
-            To get started, edit the{" "}
-            <code className={styles.code}>page.tsx</code> file.
-          </h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <Suspense fallback={null}>
+      <UrlTabSync />
+      <div className="app-container">
+        <Sidebar />
+        <div className="app-main">
+          <Header />
+          <main className="flex-1 w-full min-w-0">{renderCurrentView()}</main>
         </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+      </div>
+    </Suspense>
   );
 }
