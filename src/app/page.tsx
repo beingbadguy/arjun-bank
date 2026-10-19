@@ -1,9 +1,8 @@
 "use client";
 
 import React, { useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
-import { useWorkspaceStore, VALID_TABS, WorkspaceTab } from "@/store/useWorkspaceStore";
+import { useWorkspaceStore } from "@/store/useWorkspaceStore";
 import { LoginView } from "@/components/auth/LoginView";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
@@ -16,28 +15,20 @@ import { EligibilityCheckView } from "@/components/views/EligibilityCheckView";
 import { PdfToolsView } from "@/components/views/PdfToolsView";
 import { DataUpdateView } from "@/components/views/DataUpdateView";
 import { AdminAccessView } from "@/components/views/AdminAccessView";
-
-function UrlTabSync() {
-  const searchParams = useSearchParams();
-  const { activeTab, setActiveTab } = useWorkspaceStore();
-
-  useEffect(() => {
-    const tabParam = searchParams.get("tab") as WorkspaceTab | null;
-    if (tabParam && VALID_TABS.includes(tabParam) && tabParam !== activeTab) {
-      setActiveTab(tabParam, false);
-    }
-  }, [searchParams, activeTab, setActiveTab]);
-
-  return null;
-}
+import { CasesVaultView } from "@/components/views/CasesVaultView";
+import { TrainingView } from "@/components/views/TrainingView";
+import { SupportDeskModal } from "@/components/modals/SupportDeskModal";
+import { CallingScriptModal } from "@/components/modals/CallingScriptModal";
+import { BenefitsModal } from "@/components/modals/BenefitsModal";
 
 export default function Home() {
   const { isAuthenticated, isLoading, fetchMe } = useAuthStore();
-  const { activeTab } = useWorkspaceStore();
+  const { activeTab, syncFromUrl } = useWorkspaceStore();
 
   useEffect(() => {
     fetchMe();
-  }, [fetchMe]);
+    syncFromUrl();
+  }, [fetchMe, syncFromUrl]);
 
   if (isLoading) {
     return (
@@ -76,6 +67,10 @@ export default function Home() {
         return <DataUpdateView />;
       case "admin-access":
         return <AdminAccessView />;
+      case "cases-vault":
+        return <CasesVaultView />;
+      case "training":
+        return <TrainingView />;
       default:
         return <OverviewView />;
     }
@@ -83,7 +78,6 @@ export default function Home() {
 
   return (
     <Suspense fallback={null}>
-      <UrlTabSync />
       <div className="app-container">
         <Sidebar />
         <div className="app-main">
@@ -91,6 +85,9 @@ export default function Home() {
           <main className="flex-1 w-full min-w-0">{renderCurrentView()}</main>
         </div>
       </div>
+      <SupportDeskModal />
+      <CallingScriptModal />
+      <BenefitsModal />
     </Suspense>
   );
 }

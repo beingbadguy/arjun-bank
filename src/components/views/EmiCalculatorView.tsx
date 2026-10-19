@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Calculator,
   ArrowUpRight,
@@ -13,13 +14,59 @@ import { useWorkspaceStore } from "@/store/useWorkspaceStore";
 
 export const EmiCalculatorView: React.FC = () => {
   const { setActiveTab } = useWorkspaceStore();
+  const searchParams = useSearchParams();
 
-  const [loanAmount, setLoanAmount] = useState<number | string>(1000000);
-  const [interestRate, setInterestRate] = useState<number | string>(10.5);
-  const [tenureYears, setTenureYears] = useState<number | string>(5);
-  const [processingFeePercent, setProcessingFeePercent] = useState<number | string>(1);
-  const [periodType, setPeriodType] = useState<"yearly" | "monthly">("yearly");
-  const [monthlyPage, setMonthlyPage] = useState<number>(1);
+  const initialAmount = Number(searchParams.get("amount")) || 1000000;
+  const initialRate = Number(searchParams.get("rate")) || 10.5;
+  const initialTenure = Number(searchParams.get("tenure")) || 5;
+  const initialFee = Number(searchParams.get("fee")) || 1;
+  const initialPeriod = (searchParams.get("period") as "yearly" | "monthly") || "yearly";
+  const initialMonthlyPage = parseInt(searchParams.get("page") || "1", 10) || 1;
+
+  const [loanAmount, setLoanAmount] = useState<number | string>(initialAmount);
+  const [interestRate, setInterestRate] = useState<number | string>(initialRate);
+  const [tenureYears, setTenureYears] = useState<number | string>(initialTenure);
+  const [processingFeePercent, setProcessingFeePercent] = useState<number | string>(initialFee);
+  const [periodType, setPeriodType] = useState<"yearly" | "monthly">(initialPeriod);
+  const [monthlyPage, setMonthlyPage] = useState<number>(initialMonthlyPage);
+
+  // Sync to URL Query Params
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (useWorkspaceStore.getState().activeTab !== "emi-calc") return;
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", "emi-calc");
+      url.searchParams.set("amount", String(loanAmount));
+      url.searchParams.set("rate", String(interestRate));
+      url.searchParams.set("tenure", String(tenureYears));
+      url.searchParams.set("fee", String(processingFeePercent));
+      url.searchParams.set("period", periodType);
+      if (monthlyPage > 1) {
+        url.searchParams.set("page", String(monthlyPage));
+      } else {
+        url.searchParams.delete("page");
+      }
+      window.history.replaceState(null, "", url.toString());
+    } catch (e) {
+      console.error("Failed to sync EMI calculator URL params", e);
+    }
+  }, [loanAmount, interestRate, tenureYears, processingFeePercent, periodType, monthlyPage]);
+
+  // Popstate listener
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("amount")) setLoanAmount(Number(params.get("amount")));
+      if (params.get("rate")) setInterestRate(Number(params.get("rate")));
+      if (params.get("tenure")) setTenureYears(Number(params.get("tenure")));
+      if (params.get("fee")) setProcessingFeePercent(Number(params.get("fee")));
+      if (params.get("period")) setPeriodType((params.get("period") as any) || "yearly");
+      if (params.get("page")) setMonthlyPage(parseInt(params.get("page") || "1", 10) || 1);
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   // Currency formatter matching Indian format: ₹10,00,000 without space after ₹
   const formatCurrency = (val: number) => {

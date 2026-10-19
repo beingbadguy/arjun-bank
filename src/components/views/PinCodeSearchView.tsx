@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   MapPin,
   Search,
@@ -54,15 +55,20 @@ export const PinCodeSearchView: React.FC = () => {
   const { setActiveTab, pinQuery, setPinQuery } = useWorkspaceStore();
   const { user } = useAuthStore();
 
-  const [searchInput, setSearchInput] = useState(pinQuery || "");
+  const searchParams = useSearchParams();
+  const initialPage = parseInt(searchParams.get("page") || "1", 10) || 1;
+  const initialQ = searchParams.get("q") || searchParams.get("pin") || pinQuery || "";
+  const initialLender = searchParams.get("lender") || "All";
+
+  const [searchInput, setSearchInput] = useState(initialQ);
   const [results, setResults] = useState<PinCodeItem[]>([]);
   const [totalCount, setTotalCount] = useState<number>(30630);
   const [matchedCount, setMatchedCount] = useState<number>(0);
-  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [currentPage, setCurrentPage] = useState<number>(initialPage);
   const [totalPages, setTotalPages] = useState<number>(1);
-  const [hasSearched, setHasSearched] = useState<boolean>(false);
+  const [hasSearched, setHasSearched] = useState<boolean>(Boolean(initialQ));
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [selectedLenderFilter, setSelectedLenderFilter] = useState<string>("All");
+  const [selectedLenderFilter, setSelectedLenderFilter] = useState<string>(initialLender);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncStatusMsg, setSyncStatusMsg] = useState<string | null>(null);
 
@@ -95,12 +101,52 @@ export const PinCodeSearchView: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchPinCodes(pinQuery, 1);
-    if (pinQuery) {
-      setHasSearched(true);
-      setSearchInput(pinQuery);
+    fetchPinCodes(initialQ, initialPage);
+  }, []);
+
+  // Sync state to URL Query Params in real-time
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (useWorkspaceStore.getState().activeTab !== "pin-search") return;
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", "pin-search");
+      if (currentPage > 1) {
+        url.searchParams.set("page", String(currentPage));
+      } else {
+        url.searchParams.delete("page");
+      }
+      if (searchInput.trim()) {
+        url.searchParams.set("q", searchInput.trim());
+      } else {
+        url.searchParams.delete("q");
+      }
+      if (selectedLenderFilter && selectedLenderFilter !== "All") {
+        url.searchParams.set("lender", selectedLenderFilter);
+      } else {
+        url.searchParams.delete("lender");
+      }
+      window.history.replaceState(null, "", url.toString());
+    } catch (e) {
+      console.error("Failed to sync URL in PinCodeSearchView", e);
     }
-  }, [pinQuery]);
+  }, [currentPage, searchInput, selectedLenderFilter]);
+
+  // Listen to browser Back/Forward popstate
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const p = parseInt(params.get("page") || "1", 10) || 1;
+      const q = params.get("q") || params.get("pin") || "";
+      const l = params.get("lender") || "All";
+      setCurrentPage(p);
+      setSearchInput(q);
+      setSelectedLenderFilter(l);
+      fetchPinCodes(q, p);
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -182,7 +228,7 @@ export const PinCodeSearchView: React.FC = () => {
               className="inline-flex items-center gap-1.5 text-xs text-[#576558] hover:text-[#163A2C] bg-white border border-[#E3EBE0] px-2.5 py-1.5 rounded-lg shadow-2xs hover:bg-[#F8F9F5] transition-all cursor-pointer font-medium"
               onClick={handleSyncFromTsv}
               disabled={isSyncing}
-              title="Synchronize fresh master from opnoddy.online/data/pin.tsv"
+              title="Synchronize master PIN database"
             >
               <RefreshCw size={12} className={isSyncing ? "animate-spin text-[#163A2C]" : "text-[#829283]"} />
               <span>{isSyncing ? "Syncing..." : "Sync Master"}</span>
@@ -204,7 +250,7 @@ export const PinCodeSearchView: React.FC = () => {
               <CheckCircle2 size={13} className="text-[#196D29]" />
               <span>{syncStatusMsg}</span>
             </div>
-            <span className="text-[9.5px] text-[#576558] font-mono">opnoddy.online / pin.tsv</span>
+            <span className="text-[9.5px] text-[#576558] font-mono">Master Database / pin.tsv</span>
           </div>
         )}
       </div>
@@ -581,7 +627,7 @@ export const PinCodeSearchView: React.FC = () => {
             <span>Master PIN Database Ready (30,630 Records)</span>
           </div>
           <p className="text-sm text-[#576558] mb-6 max-w-2xl">
-            The workspace is synchronized with the master serviceability dataset extracted from <code className="bg-[#F1F6EF] px-1.5 py-0.5 rounded text-xs text-[#163A2C] font-mono">opnoddy.online/data/pin.tsv</code>. Click any location below for instant branch analysis:
+            The workspace is synchronized with the master serviceability dataset extracted from <code className="bg-[#F1F6EF] px-1.5 py-0.5 rounded text-xs text-[#163A2C] font-mono">Bank Master / pin.tsv</code>. Click any location below for instant branch analysis:
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5">

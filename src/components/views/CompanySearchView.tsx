@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { createPortal } from "react-dom";
 import {
   Building2,
@@ -39,13 +40,18 @@ interface CompanyItem {
 
 export const CompanySearchView: React.FC = () => {
   const { setActiveTab, companyQuery, setCompanyQuery } = useWorkspaceStore();
+  const searchParams = useSearchParams();
+  const initialPage = parseInt(searchParams.get("page") || "1", 10) || 1;
+  const initialQ = searchParams.get("q") || searchParams.get("search") || companyQuery || "";
+  const initialCat = searchParams.get("cat") || searchParams.get("category") || "All";
+
   const [mounted, setMounted] = useState<boolean>(false);
-  const [searchInput, setSearchInput] = useState(companyQuery || "");
-  const [selectedCategory, setSelectedCategory] = useState<string>("All");
+  const [searchInput, setSearchInput] = useState(initialQ);
+  const [selectedCategory, setSelectedCategory] = useState<string>(initialCat);
   const [companies, setCompanies] = useState<CompanyItem[]>([]);
   const [totalCount, setTotalCount] = useState<number>(0);
   const [matchedCount, setMatchedCount] = useState<number>(0);
-  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [currentPage, setCurrentPage] = useState<number>(initialPage);
   const [totalPages, setTotalPages] = useState<number>(1);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [selectedCompany, setSelectedCompany] = useState<CompanyItem | null>(null);
@@ -92,8 +98,52 @@ export const CompanySearchView: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchCompanies(companyQuery, 1);
-  }, [companyQuery]);
+    fetchCompanies(initialQ, initialPage);
+  }, []);
+
+  // Sync state to URL Query Params in real-time
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (useWorkspaceStore.getState().activeTab !== "company-search") return;
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", "company-search");
+      if (currentPage > 1) {
+        url.searchParams.set("page", String(currentPage));
+      } else {
+        url.searchParams.delete("page");
+      }
+      if (searchInput.trim()) {
+        url.searchParams.set("q", searchInput.trim());
+      } else {
+        url.searchParams.delete("q");
+      }
+      if (selectedCategory && selectedCategory !== "All") {
+        url.searchParams.set("cat", selectedCategory);
+      } else {
+        url.searchParams.delete("cat");
+      }
+      window.history.replaceState(null, "", url.toString());
+    } catch (e) {
+      console.error("Failed to sync URL in CompanySearchView", e);
+    }
+  }, [currentPage, searchInput, selectedCategory]);
+
+  // Listen to browser Back/Forward popstate
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const p = parseInt(params.get("page") || "1", 10) || 1;
+      const q = params.get("q") || params.get("search") || "";
+      const cat = params.get("cat") || params.get("category") || "All";
+      setCurrentPage(p);
+      setSearchInput(q);
+      setSelectedCategory(cat);
+      fetchCompanies(q, p);
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();

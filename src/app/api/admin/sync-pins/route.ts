@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       success: true,
       totalPincodes,
-      sourceUrl: DEFAULT_TSV_URL,
+      sourceUrl: "Master Serviceability Dataset (pin_download.tsv)",
       sample,
     });
   } catch (error: any) {

@@ -16,12 +16,26 @@ import {
   LogOut,
   X,
   AlertTriangle,
+  Headphones,
+  PhoneCall,
+  FolderLock,
+  Award,
+  GraduationCap,
 } from "lucide-react";
 import { useWorkspaceStore, WorkspaceTab } from "@/store/useWorkspaceStore";
 import { useAuthStore } from "@/store/useAuthStore";
 
 export const Sidebar: React.FC = () => {
-  const { activeTab, setActiveTab, mobileMenuOpen, setMobileMenuOpen } = useWorkspaceStore();
+  const {
+    activeTab,
+    setActiveTab,
+    mobileMenuOpen,
+    setMobileMenuOpen,
+    setSupportModalOpen,
+    setScriptModalOpen,
+    benefitsModalOpen,
+    setBenefitsModalOpen,
+  } = useWorkspaceStore();
   const { user, logout } = useAuthStore();
   const [mounted, setMounted] = useState<boolean>(false);
   const [showLogoutModal, setShowLogoutModal] = useState<boolean>(false);
@@ -57,6 +71,7 @@ export const Sidebar: React.FC = () => {
     { id: "emi-calc", label: "EMI calculator", icon: <Calculator size={15} /> },
     { id: "eligibility", label: "Eligibility check", icon: <CheckCircle2 size={15} /> },
     { id: "pdf-tools", label: "PDF tools", icon: <Files size={15} /> },
+    { id: "training", label: "Training modules", icon: <GraduationCap size={15} /> },
   ];
 
   const managementNavItems: {
@@ -70,6 +85,12 @@ export const Sidebar: React.FC = () => {
       id: "admin-access",
       label: "Admin access",
       icon: <Lock size={15} />,
+      requiresSuperadmin: true,
+    },
+    {
+      id: "cases-vault",
+      label: "My Cases (Locked)",
+      icon: <FolderLock size={15} />,
       requiresSuperadmin: true,
     },
   ];
@@ -118,7 +139,7 @@ export const Sidebar: React.FC = () => {
             </div>
             <div className="flex flex-col">
               <div className="text-xs font-bold text-[#17241B] leading-tight tracking-tight">
-                arjungrewal.online
+                Arjun Grewal
               </div>
               <div className="text-[9px] font-bold tracking-widest text-[#829283] uppercase">
                 LOAN OPERATIONS
@@ -180,49 +201,119 @@ export const Sidebar: React.FC = () => {
               MANAGEMENT
             </div>
             <ul className="flex flex-col gap-0.5 list-none p-0 m-0">
-              {managementNavItems.map((item) => {
-                const isActive = activeTab === item.id;
-                if (item.requiresSuperadmin && !isSuperadmin) {
+              {managementNavItems
+                .filter((item) => !item.requiresSuperadmin || isSuperadmin)
+                .map((item) => {
+                  const isActive = activeTab === item.id;
                   return (
                     <li key={item.id}>
-                      <div
-                        className="w-full flex items-center justify-between py-1.5 px-2 rounded-md text-[12px] text-[#576558] opacity-50 cursor-not-allowed"
-                        title="Superadmin access only"
+                      <button
+                        type="button"
+                        className={`w-full flex items-center justify-between py-1.5 px-2 rounded-md text-[12px] font-medium transition-all cursor-pointer ${
+                          isActive
+                            ? "bg-[#E3EDE0] text-[#143729] font-semibold"
+                            : "text-[#576558] hover:bg-[#EEF4EB] hover:text-[#17241B]"
+                        }`}
+                        onClick={() => setActiveTab(item.id)}
                       >
                         <div className="flex items-center gap-2">
-                          <span className="text-[#99A69A]">{item.icon}</span>
+                          <span className={isActive ? "text-[#163A2C]" : "text-[#7B8B7C]"}>
+                            {item.icon}
+                          </span>
                           <span>{item.label}</span>
                         </div>
-                        <span className="text-[9px] text-[#829283]">Admin</span>
-                      </div>
+                        {isActive && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#257853]" />
+                        )}
+                      </button>
                     </li>
                   );
-                }
+                })}
+            </ul>
+          </div>
 
-                return (
-                  <li key={item.id}>
-                    <button
-                      type="button"
-                      className={`w-full flex items-center justify-between py-1.5 px-2 rounded-md text-[12px] font-medium transition-all cursor-pointer ${
-                        isActive
-                          ? "bg-[#E3EDE0] text-[#143729] font-semibold"
-                          : "text-[#576558] hover:bg-[#EEF4EB] hover:text-[#17241B]"
-                      }`}
-                      onClick={() => setActiveTab(item.id)}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className={isActive ? "text-[#163A2C]" : "text-[#7B8B7C]"}>
-                          {item.icon}
-                        </span>
-                        <span>{item.label}</span>
-                      </div>
-                      {isActive && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#257853]" />
-                      )}
-                    </button>
-                  </li>
-                );
-              })}
+          {/* Benefits & Bonuses - For all users */}
+          <div>
+            <div className="text-[9.5px] font-bold tracking-widest text-[#829283] uppercase px-2 mb-1.5">
+              BENEFITS &amp; REWARDS
+            </div>
+            <ul className="flex flex-col gap-0.5 list-none p-0 m-0">
+              <li>
+                <button
+                  type="button"
+                  className={`w-full flex items-center justify-between py-1.5 px-2 rounded-md text-[12px] font-medium transition-all cursor-pointer ${
+                    benefitsModalOpen
+                      ? "bg-[#E3EDE0] text-[#143729] font-semibold"
+                      : "text-[#576558] hover:bg-[#EEF4EB] hover:text-[#17241B]"
+                  }`}
+                  onClick={() => {
+                    setBenefitsModalOpen(true);
+                    setMobileMenuOpen(false);
+                  }}
+                  id="sidebar-benefits-btn"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-amber-500">
+                      <Award size={15} />
+                    </span>
+                    <span>Benefits &amp; Bonuses</span>
+                  </div>
+                  {benefitsModalOpen && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#257853]" />
+                  )}
+                </button>
+              </li>
+            </ul>
+          </div>
+
+          {/* Quick Support & Resources */}
+          <div>
+            <div className="text-[9.5px] font-bold tracking-widest text-[#829283] uppercase px-2 mb-1.5">
+              SUPPORT &amp; SCRIPT
+            </div>
+            <ul className="flex flex-col gap-0.5 list-none p-0 m-0">
+              <li>
+                <button
+                  type="button"
+                  className="w-full flex items-center justify-between py-1.5 px-2 rounded-md text-[12px] font-medium text-[#576558] hover:bg-[#EEF4EB] hover:text-[#17241B] transition-all cursor-pointer"
+                  onClick={() => {
+                    setScriptModalOpen(true);
+                    setMobileMenuOpen(false);
+                  }}
+                  id="sidebar-script-btn"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-[#D92D20]">
+                      <Headphones size={15} />
+                    </span>
+                    <span>Calling Script</span>
+                  </div>
+                  <span className="text-[9px] font-semibold text-[#829283] bg-[#EAF2E8] px-1.5 py-0.5 rounded">
+                    Telecaller
+                  </span>
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  className="w-full flex items-center justify-between py-1.5 px-2 rounded-md text-[12px] font-medium text-[#576558] hover:bg-[#EEF4EB] hover:text-[#17241B] transition-all cursor-pointer"
+                  onClick={() => {
+                    setSupportModalOpen(true);
+                    setMobileMenuOpen(false);
+                  }}
+                  id="sidebar-contact-us-btn"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-[#163A2C]">
+                      <PhoneCall size={15} />
+                    </span>
+                    <span>Contact Us</span>
+                  </div>
+                  <span className="text-[9px] font-semibold text-[#163A2C] bg-[#EAF2E8] px-1.5 py-0.5 rounded">
+                    Support
+                  </span>
+                </button>
+              </li>
             </ul>
           </div>
         </div>

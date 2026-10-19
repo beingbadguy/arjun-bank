@@ -9,7 +9,9 @@ export type WorkspaceTab =
   | "eligibility"
   | "pdf-tools"
   | "data-update"
-  | "admin-access";
+  | "admin-access"
+  | "cases-vault"
+  | "training";
 
 export const VALID_TABS: WorkspaceTab[] = [
   "overview",
@@ -21,6 +23,8 @@ export const VALID_TABS: WorkspaceTab[] = [
   "pdf-tools",
   "data-update",
   "admin-access",
+  "cases-vault",
+  "training",
 ];
 
 function getInitialTab(): WorkspaceTab {
@@ -42,11 +46,16 @@ function updateBrowserUrl(tab: WorkspaceTab) {
   if (typeof window === "undefined") return;
   try {
     const url = new URL(window.location.href);
-    if (tab === "overview") {
-      url.searchParams.set("tab", "overview");
-    } else {
-      url.searchParams.set("tab", tab);
+    const currentTab = url.searchParams.get("tab");
+    if (currentTab !== tab) {
+      const paramsToClear = [
+        "page", "search", "q", "status", "bank", "tool", "cat", "category",
+        "lender", "pin", "amount", "rate", "tenure", "fee", "period", "salary",
+        "foir", "emi", "factor"
+      ];
+      paramsToClear.forEach((p) => url.searchParams.delete(p));
     }
+    url.searchParams.set("tab", tab);
     window.history.pushState({ tab }, "", url.toString());
   } catch (e) {
     console.error("Failed to update URL query", e);
@@ -63,6 +72,25 @@ interface WorkspaceState {
   mobileMenuOpen: boolean;
   setMobileMenuOpen: (open: boolean) => void;
   syncFromUrl: () => void;
+  supportModalOpen: boolean;
+  setSupportModalOpen: (open: boolean) => void;
+  scriptModalOpen: boolean;
+  setScriptModalOpen: (open: boolean) => void;
+  benefitsModalOpen: boolean;
+  setBenefitsModalOpen: (open: boolean) => void;
+  // Training and Audio Assist
+  trainingStep: number;
+  setTrainingStep: (step: number) => void;
+  trainingViewMode: "index" | "player";
+  setTrainingViewMode: (mode: "index" | "player") => void;
+  audioAssistEnabled: boolean;
+  setAudioAssistEnabled: (enabled: boolean) => void;
+  isSpeaking: boolean;
+  setIsSpeaking: (speaking: boolean) => void;
+  autoAdvance: boolean;
+  setAutoAdvance: (auto: boolean) => void;
+  completedModules: number[];
+  markModuleCompleted: (step: number) => void;
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
@@ -95,6 +123,35 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   setPinQuery: (pin) => set({ pinQuery: pin }),
   mobileMenuOpen: false,
   setMobileMenuOpen: (open) => set({ mobileMenuOpen: open }),
+  supportModalOpen: false,
+  setSupportModalOpen: (open) => set({ supportModalOpen: open }),
+  scriptModalOpen: false,
+  setScriptModalOpen: (open) => set({ scriptModalOpen: open }),
+  benefitsModalOpen: false,
+  setBenefitsModalOpen: (open) => set({ benefitsModalOpen: open }),
+
+  // Training & Audio defaults
+  trainingStep: 1,
+  setTrainingStep: (step: number) => {
+    const validStep = Math.max(1, Math.min(16, step));
+    set({ trainingStep: validStep });
+    get().markModuleCompleted(validStep);
+  },
+  trainingViewMode: "player",
+  setTrainingViewMode: (mode: "index" | "player") => set({ trainingViewMode: mode }),
+  audioAssistEnabled: true,
+  setAudioAssistEnabled: (enabled: boolean) => set({ audioAssistEnabled: enabled }),
+  isSpeaking: false,
+  setIsSpeaking: (speaking: boolean) => set({ isSpeaking: speaking }),
+  autoAdvance: false,
+  setAutoAdvance: (auto: boolean) => set({ autoAdvance: auto }),
+  completedModules: [1],
+  markModuleCompleted: (step: number) => {
+    const current = get().completedModules;
+    if (!current.includes(step)) {
+      set({ completedModules: [...current, step] });
+    }
+  },
 }));
 
 // Listen to browser Back/Forward navigation

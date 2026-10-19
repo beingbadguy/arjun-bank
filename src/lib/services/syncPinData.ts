@@ -5,7 +5,8 @@ import mongoose from "mongoose";
 import PinCode from "../models/PinCode";
 import { connectToDatabase } from "../db";
 
-export const DEFAULT_TSV_URL = "https://opnoddy.online/data/pin.tsv?v=1792151749635";
+export const LOCAL_TSV_PATH = "pin_download.tsv";
+export const DEFAULT_TSV_URL = "";
 
 export const BANK_MAP: Record<string, string> = {
   "Bajaj Pincode Master": "Bajaj Finserv",
@@ -78,12 +79,16 @@ export async function fetchTsvData(url = DEFAULT_TSV_URL): Promise<string> {
   if (fs.existsSync(localCache)) {
     try {
       const stats = fs.statSync(localCache);
-      if (stats.size > 1000000) {
+      if (stats.size > 10000) {
         return fs.readFileSync(localCache, "utf8");
       }
     } catch {
-      // Continue to download
+      // Continue to download if url exists
     }
+  }
+
+  if (!url) {
+    throw new Error("Local pin_download.tsv dataset not found and no remote URL provided");
   }
 
   return new Promise((resolve, reject) => {

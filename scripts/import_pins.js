@@ -1,6 +1,6 @@
 /**
  * High-performance PIN Code Master Ingestion Script
- * Source: https://opnoddy.online/data/pin.tsv?v=1792151749635
+ * Source: Local master serviceability dataset
  * Extracts ~187,450 lender serviceability rows and maps them into 30,630 Indian PIN code documents
  */
 
@@ -9,7 +9,7 @@ const path = require('path');
 const https = require('https');
 const mongoose = require('mongoose');
 
-const TSV_URL = 'https://opnoddy.online/data/pin.tsv?v=1792151749635';
+const TSV_URL = '';
 const LOCAL_FILE = path.join(__dirname, '..', 'pin_download.tsv');
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/arjun_loan_ops';
 

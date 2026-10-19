@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   UploadCloud,
   FileSpreadsheet,
@@ -17,7 +18,7 @@ import {
 } from "lucide-react";
 import { useWorkspaceStore } from "@/store/useWorkspaceStore";
 
-const TSV_SOURCE_URL = "https://opnoddy.online/data/pin.tsv?v=1792151749635";
+const TSV_SOURCE_URL = "pin_download.tsv";
 
 const LENDER_COUNTS_DISPLAY = [
   { name: "Axis Bank", count: 73174, tier: "Major Bank" },
@@ -36,11 +37,35 @@ const LENDER_COUNTS_DISPLAY = [
 
 export const DataUpdateView: React.FC = () => {
   const { setActiveTab } = useWorkspaceStore();
-  const [activeMaster, setActiveMaster] = useState<"companies" | "pincodes">("pincodes");
+  const searchParams = useSearchParams();
+  const initialType = searchParams.get("type") === "companies" ? "companies" : "pincodes";
+
+  const [activeMaster, setActiveMaster] = useState<"companies" | "pincodes">(initialType);
   const [companyCount, setCompanyCount] = useState<number>(0);
   const [pincodeCount, setPincodeCount] = useState<number>(30630);
   const [statusMessage, setStatusMessage] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string>("");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (useWorkspaceStore.getState().activeTab !== "data-update") return;
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", "data-update");
+      url.searchParams.set("type", activeMaster);
+      window.history.replaceState(null, "", url.toString());
+    } catch {}
+  }, [activeMaster]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const t = params.get("type") === "companies" ? "companies" : "pincodes";
+      setActiveMaster(t);
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
   const [isSyncingTsv, setIsSyncingTsv] = useState<boolean>(false);
   const [customTsvUrl, setCustomTsvUrl] = useState<string>(TSV_SOURCE_URL);
 
@@ -272,7 +297,7 @@ export const DataUpdateView: React.FC = () => {
               <span>TSV Data Pipeline</span>
             </div>
             <div className="text-[11px] text-[#576558]">
-              Extracts 187k+ rows from <span className="font-mono text-[#163A2C]">opnoddy.online</span> into indexed MongoDB documents.
+              Extracts 187k+ rows from <span className="font-mono text-[#163A2C]">pin_download.tsv</span> into indexed MongoDB documents.
             </div>
           </div>
           <button
@@ -323,7 +348,7 @@ export const DataUpdateView: React.FC = () => {
               <div>
                 <div className="flex items-center gap-1.5 text-sm md:text-base font-bold text-[#17241B]">
                   <Database size={16} className="text-[#163A2C]" />
-                  <span>Remote TSV Data Stream</span>
+                  <span>Master TSV Data Stream</span>
                 </div>
                 <p className="text-xs text-[#576558] mt-0.5">
                   Extracts pan-India branch coverage, clusters, and tier categorizations across 12 institutional lenders.
@@ -349,7 +374,7 @@ export const DataUpdateView: React.FC = () => {
                 className="flex-1 h-9 px-3 border border-[#E3EBE0] rounded-lg bg-[#FAFBF9] text-base sm:text-xs font-mono text-[#17241B] outline-none focus:border-[#163A2C] focus:bg-white"
                 value={customTsvUrl}
                 onChange={(e) => setCustomTsvUrl(e.target.value)}
-                placeholder="Enter TSV dataset URL"
+                placeholder="Internal Master Dataset (pin_download.tsv)"
               />
               <button
                 type="button"

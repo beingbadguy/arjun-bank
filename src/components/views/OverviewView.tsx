@@ -12,11 +12,17 @@ import {
   CheckCircle2,
   UploadCloud,
   Check,
+  Headphones,
+  PhoneCall,
+  FolderLock,
 } from "lucide-react";
 import { useWorkspaceStore } from "@/store/useWorkspaceStore";
+import { useAuthStore } from "@/store/useAuthStore";
 
 export const OverviewView: React.FC = () => {
-  const { setActiveTab } = useWorkspaceStore();
+  const { setActiveTab, setSupportModalOpen, setScriptModalOpen } = useWorkspaceStore();
+  const { user } = useAuthStore();
+  const isSuperadmin = user?.role === "superadmin";
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full animate-fade-in">
@@ -354,6 +360,101 @@ export const OverviewView: React.FC = () => {
             <span>→</span>
           </button>
         </div>
+      </div>
+
+      {/* Telecaller Script, Support Desk & Cases Vault Quick Cards */}
+      <div
+        className={`grid grid-cols-1 ${isSuperadmin ? "md:grid-cols-3" : "md:grid-cols-2"
+          } gap-3.5 mb-6`}
+      >
+        {/* Calling Script Card */}
+        <div className="bg-white border border-[#DCE4D9] hover:border-[#2563EB]/40 rounded-xl p-4 flex flex-col justify-between transition-all hover:-translate-y-0.5 shadow-2xs group">
+          <div>
+            <div className="flex items-center justify-between mb-2.5">
+              <div className="w-8 h-8 rounded-lg bg-[#EFF6FF] text-[#2563EB] flex items-center justify-center">
+                <Headphones size={16} />
+              </div>
+              <span className="text-[10px] font-bold text-[#1D4ED8] bg-[#EFF6FF] px-2 py-0.5 rounded-full uppercase tracking-wider">
+                Script
+              </span>
+            </div>
+            <h3 className="text-sm font-bold tracking-tight text-[#17241B] mb-1">
+              Telecaller Calling Script
+            </h3>
+            <p className="text-xs text-[#576558] leading-relaxed mb-3">
+              Standard 4-step pitching script for telecallers: Greeting, Need Assessment, Pitch &amp; Document Collection.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setScriptModalOpen(true)}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#2563EB] group-hover:gap-2 transition-all cursor-pointer w-fit"
+            id="overview-open-script-btn"
+          >
+            <span>Open practice window</span>
+            <span>→</span>
+          </button>
+        </div>
+
+        {/* Support Desk Card */}
+        <div className="bg-white border border-[#DCE4D9] hover:border-[#163A2C]/40 rounded-xl p-4 flex flex-col justify-between transition-all hover:-translate-y-0.5 shadow-2xs group">
+          <div>
+            <div className="flex items-center justify-between mb-2.5">
+              <div className="w-8 h-8 rounded-lg bg-[#F1F6EF] text-[#163A2C] flex items-center justify-center">
+                <PhoneCall size={16} />
+              </div>
+              <span className="text-[10px] font-bold text-[#163A2C] bg-[#EAF2E8] px-2 py-0.5 rounded-full uppercase tracking-wider">
+                Support Desk
+              </span>
+            </div>
+            <h3 className="text-sm font-bold tracking-tight text-[#17241B] mb-1">
+              Process Manager
+            </h3>
+            <p className="text-xs text-[#576558] leading-relaxed mb-3">
+              Arjun Grewal • Contact: +91 99685 84137 • Active hours: 9:30 AM - 6:30 PM.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSupportModalOpen(true)}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#163A2C] group-hover:gap-2 transition-all cursor-pointer w-fit"
+            id="overview-open-support-btn"
+          >
+            <span>Contact Support Desk</span>
+            <span>→</span>
+          </button>
+        </div>
+
+        {/* Cases Vault (Locked) Card - Superadmin Only */}
+        {isSuperadmin && (
+          <div className="bg-white border border-[#DCE4D9] hover:border-[#163A2C]/40 rounded-xl p-4 flex flex-col justify-between transition-all hover:-translate-y-0.5 shadow-2xs group">
+            <div>
+              <div className="flex items-center justify-between mb-2.5">
+                <div className="w-8 h-8 rounded-lg bg-[#EBF4E9] text-[#163A2C] flex items-center justify-center">
+                  <FolderLock size={16} />
+                </div>
+                <span className="text-[10px] font-bold text-[#163A2C] bg-[#EAF2E8] px-2 py-0.5 rounded-full uppercase tracking-wider">
+                  🔒 Locked Folder
+                </span>
+              </div>
+              <h3 className="text-sm font-bold tracking-tight text-[#17241B] mb-1">
+                My Cases (Vault)
+              </h3>
+              <p className="text-xs text-[#576558] leading-relaxed mb-3">
+                Private case records, bank logins, application tracking &amp; status entries. Superadmin access only.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveTab("cases-vault")}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#163A2C] group-hover:gap-2 transition-all cursor-pointer w-fit"
+              id="overview-open-vault-btn"
+            >
+              <span>Open cases folder</span>
+              <span>→</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Fresh Data Bottom Banner */}

@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   FileText,
   ArrowUpRight,
@@ -27,13 +28,49 @@ const EMI_FACTORS: EmiFactorOption[] = [
 
 export const EligibilityCheckView: React.FC = () => {
   const { setActiveTab } = useWorkspaceStore();
+  const searchParams = useSearchParams();
 
-  const [netSalary, setNetSalary] = useState<number | string>(75000);
-  const [foirPercent, setFoirPercent] = useState<number | string>(50);
-  const [existingEmi, setExistingEmi] = useState<number | string>(10000);
-  const [selectedFactorId, setSelectedFactorId] = useState<string>("5yr");
+  const initialSalary = Number(searchParams.get("salary")) || 75000;
+  const initialFoir = Number(searchParams.get("foir")) || 50;
+  const initialEmi = Number(searchParams.get("emi")) || 10000;
+  const initialFactor = searchParams.get("factor") || "5yr";
+
+  const [netSalary, setNetSalary] = useState<number | string>(initialSalary);
+  const [foirPercent, setFoirPercent] = useState<number | string>(initialFoir);
+  const [existingEmi, setExistingEmi] = useState<number | string>(initialEmi);
+  const [selectedFactorId, setSelectedFactorId] = useState<string>(initialFactor);
   const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
   const [hasCalculated, setHasCalculated] = useState<boolean>(false);
+
+  // Sync state to URL Query Params in real-time
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (useWorkspaceStore.getState().activeTab !== "eligibility") return;
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", "eligibility");
+      url.searchParams.set("salary", String(netSalary));
+      url.searchParams.set("foir", String(foirPercent));
+      url.searchParams.set("emi", String(existingEmi));
+      url.searchParams.set("factor", selectedFactorId);
+      window.history.replaceState(null, "", url.toString());
+    } catch (e) {
+      console.error("Failed to sync Eligibility URL params", e);
+    }
+  }, [netSalary, foirPercent, existingEmi, selectedFactorId]);
+
+  // Popstate listener
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("salary")) setNetSalary(Number(params.get("salary")));
+      if (params.get("foir")) setFoirPercent(Number(params.get("foir")));
+      if (params.get("emi")) setExistingEmi(Number(params.get("emi")));
+      if (params.get("factor")) setSelectedFactorId(params.get("factor") || "5yr");
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   const selectedFactor = useMemo(() => {
     return EMI_FACTORS.find((f) => f.id === selectedFactorId) || EMI_FACTORS[0];
