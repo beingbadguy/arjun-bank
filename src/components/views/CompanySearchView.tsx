@@ -60,11 +60,9 @@ export const CompanySearchView: React.FC = () => {
     setMounted(true);
   }, []);
 
-  // Lock body scroll and listen for Escape key when modal is open
+  // Listen for Escape key when modal is open
   useEffect(() => {
     if (selectedCompany) {
-      const prevOverflow = document.body.style.overflow;
-      document.body.style.overflow = "hidden";
       const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === "Escape") {
           setSelectedCompany(null);
@@ -72,7 +70,6 @@ export const CompanySearchView: React.FC = () => {
       };
       window.addEventListener("keydown", handleKeyDown);
       return () => {
-        document.body.style.overflow = prevOverflow;
         window.removeEventListener("keydown", handleKeyDown);
       };
     }
@@ -500,13 +497,13 @@ export const CompanySearchView: React.FC = () => {
       {/* Selected Company Policy Modal - Teleported directly to document.body to cover the whole page */}
       {selectedCompany && mounted && createPortal(
         <div
-          className="fixed inset-0 z-[9999] w-screen h-screen min-h-dvh bg-black/60 backdrop-blur-xs p-4 sm:p-6 flex items-center justify-center overflow-y-auto animate-fade-in"
+          className="fixed inset-0 z-[9999] w-screen h-screen min-h-dvh bg-black/60 backdrop-blur-xs p-3 sm:p-6 py-6 sm:py-8 flex items-start sm:items-center justify-center overflow-y-auto animate-fade-in"
           onClick={() => setSelectedCompany(null)}
           role="dialog"
           aria-modal="true"
         >
           <div
-            className="relative bg-white rounded-2xl border border-[#DCE4D9] shadow-2xl p-5 sm:p-7 max-w-xl w-full my-auto animate-scale-up flex flex-col max-h-[88vh] overflow-hidden"
+            className="relative bg-white rounded-2xl border border-[#DCE4D9] shadow-2xl p-5 sm:p-7 max-w-xl w-full my-auto animate-scale-up flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}

@@ -29,14 +29,14 @@ export const BenefitsModal: React.FC = () => {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[9999] w-screen h-screen min-h-dvh flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto animate-fade-in"
+      className="fixed inset-0 z-[9999] w-screen h-screen min-h-dvh flex items-start sm:items-center justify-center p-4 py-8 bg-black/60 backdrop-blur-xs overflow-y-auto animate-fade-in"
       onClick={() => setBenefitsModalOpen(false)}
       role="dialog"
       aria-modal="true"
       aria-labelledby="incentive-scheme-title"
     >
       <div
-        className="bg-white rounded-2xl p-6 sm:p-7 max-w-md w-full shadow-2xl border border-gray-100 relative animate-scale-up"
+        className="bg-white rounded-2xl p-6 sm:p-7 max-w-md w-full shadow-2xl border border-gray-100 relative my-auto animate-scale-up"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

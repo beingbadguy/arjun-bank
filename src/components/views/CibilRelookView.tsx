@@ -1025,11 +1025,11 @@ export const CibilRelookView: React.FC = () => {
       {/* ===================== ADD TRADE LINE MODAL ===================== */}
       {showAddModal && (
         <div
-          className="fixed inset-0 z-[9999] w-screen h-screen flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in"
+          className="fixed inset-0 z-[9999] w-screen h-screen min-h-dvh flex items-start sm:items-center justify-center p-3 sm:p-4 py-6 sm:py-8 bg-black/60 backdrop-blur-xs overflow-y-auto animate-fade-in"
           onClick={() => setShowAddModal(false)}
         >
           <div
-            className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-gray-100 animate-scale-up"
+            className="bg-white rounded-2xl p-5 sm:p-6 max-w-md w-full shadow-2xl border border-gray-100 my-auto animate-scale-up"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-3 border-b border-gray-100 mb-4">
@@ -1161,11 +1161,11 @@ export const CibilRelookView: React.FC = () => {
       {/* ===================== EDIT TRADE LINE MODAL ===================== */}
       {editingAccount && (
         <div
-          className="fixed inset-0 z-[9999] w-screen h-screen flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in"
+          className="fixed inset-0 z-[9999] w-screen h-screen min-h-dvh flex items-start sm:items-center justify-center p-3 sm:p-4 py-6 sm:py-8 bg-black/60 backdrop-blur-xs overflow-y-auto animate-fade-in"
           onClick={() => setEditingAccount(null)}
         >
           <div
-            className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-gray-100 animate-scale-up"
+            className="bg-white rounded-2xl p-5 sm:p-6 max-w-md w-full shadow-2xl border border-gray-100 my-auto animate-scale-up"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-3 border-b border-gray-100 mb-4">

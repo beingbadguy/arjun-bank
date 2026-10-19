@@ -134,7 +134,7 @@ export const CallingScriptModal: React.FC = () => {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[9999] w-screen h-screen min-h-dvh flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/60 backdrop-blur-xs overflow-y-auto animate-fade-in"
+      className="fixed inset-0 z-[9999] w-screen h-screen min-h-dvh flex items-start sm:items-center justify-center p-3 sm:p-4 md:p-6 py-6 sm:py-8 bg-black/60 backdrop-blur-xs overflow-y-auto animate-fade-in"
       onClick={() => setScriptModalOpen(false)}
       role="dialog"
       aria-modal="true"

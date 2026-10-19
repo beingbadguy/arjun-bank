@@ -53,32 +53,32 @@ export const Header: React.FC = () => {
   };
 
   return (
-    <header className="h-11 md:h-12 px-3 sm:px-4 md:px-6 flex items-center justify-between border-b border-[#ECEFE9] bg-[#F8F9F5]/90 backdrop-blur-md sticky top-0 z-20 select-none shrink-0 gap-2">
-      <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+    <header className="h-11 md:h-12 px-2.5 sm:px-4 md:px-6 flex items-center justify-between border-b border-[#ECEFE9] bg-[#F8F9F5]/90 backdrop-blur-md sticky top-0 z-20 select-none shrink-0 gap-1.5 sm:gap-2">
+      <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
         <button
           type="button"
-          className="md:hidden p-1.5 -ml-1 rounded-md text-[#576558] hover:bg-[#EEF4EB] cursor-pointer min-w-[36px] min-h-[36px] flex items-center justify-center shrink-0"
+          className="md:hidden p-1.5 -ml-1 rounded-md text-[#576558] hover:bg-[#EEF4EB] cursor-pointer min-w-[34px] min-h-[34px] flex items-center justify-center shrink-0"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           aria-label="Toggle navigation menu"
         >
           <Menu size={18} />
         </button>
 
-        <nav className="flex items-center gap-1.5 text-[11.5px] text-[#829283] min-w-0" aria-label="Breadcrumb">
+        <nav className="flex items-center gap-1 text-[11.5px] text-[#829283] min-w-0" aria-label="Breadcrumb">
           <span className="hidden sm:inline hover:text-[#17241B] cursor-pointer transition-colors">Workspace</span>
           <ChevronRight size={12} className="hidden sm:inline text-[#BDC7BC] shrink-0" />
-          <span className="text-[#17241B] font-semibold truncate max-w-[120px] xs:max-w-[160px] sm:max-w-none">
+          <span className="text-[#17241B] font-semibold truncate max-w-[110px] xs:max-w-[150px] sm:max-w-none">
             {tabTitleMap[activeTab]}
           </span>
         </nav>
       </div>
 
-      <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+      <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
         {/* Audio Assist Mute / Unmute Button in Header */}
         <button
           type="button"
           onClick={handleToggleAudio}
-          className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[11.5px] sm:text-xs font-semibold transition-all cursor-pointer shadow-2xs hover:shadow-xs active:scale-[0.98] ${
+          className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold transition-all cursor-pointer shadow-2xs hover:shadow-xs active:scale-[0.98] ${
             audioAssistEnabled
               ? "text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300"
               : "text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-300"
@@ -114,7 +114,7 @@ export const Header: React.FC = () => {
         <button
           type="button"
           onClick={() => setScriptModalOpen(true)}
-          className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[11.5px] sm:text-xs font-semibold text-[#163A2C] bg-white hover:bg-[#EEF4EB] border border-[#DCE4D9] hover:border-[#CBD8C7] transition-all cursor-pointer shadow-2xs hover:shadow-xs active:scale-[0.98]"
+          className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold text-[#163A2C] bg-white hover:bg-[#EEF4EB] border border-[#DCE4D9] hover:border-[#CBD8C7] transition-all cursor-pointer shadow-2xs hover:shadow-xs active:scale-[0.98]"
           title="Open Standard Calling Script for Telecallers"
           id="header-script-tab"
         >
@@ -129,7 +129,7 @@ export const Header: React.FC = () => {
         <button
           type="button"
           onClick={() => setSupportModalOpen(true)}
-          className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[11.5px] sm:text-xs font-semibold text-white bg-[#163A2C] hover:bg-[#102B21] transition-all cursor-pointer shadow-2xs hover:shadow-xs active:scale-[0.98]"
+          className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold text-white bg-[#163A2C] hover:bg-[#102B21] transition-all cursor-pointer shadow-2xs hover:shadow-xs active:scale-[0.98]"
           title="Contact Process Manager (Support Desk)"
           id="header-contact-us-btn"
         >

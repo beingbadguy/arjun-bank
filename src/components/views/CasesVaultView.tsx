@@ -1082,7 +1082,7 @@ export const CasesVaultView: React.FC = () => {
       {/* ADD / EDIT CASE MODAL */}
       {showAddModal && (
         <div
-          className="fixed inset-0 z-[9999] w-screen h-screen min-h-dvh flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto animate-fade-in"
+          className="fixed inset-0 z-[9999] w-screen h-screen min-h-dvh flex items-start sm:items-center justify-center p-3 sm:p-4 py-6 sm:py-8 bg-black/60 backdrop-blur-xs overflow-y-auto animate-fade-in"
           onClick={() => setShowAddModal(false)}
         >
           <div
@@ -1365,11 +1365,11 @@ export const CasesVaultView: React.FC = () => {
       {/* DELETE CONFIRMATION MODAL */}
       {deletingCaseId && (
         <div
-          className="fixed inset-0 z-[9999] w-screen h-screen min-h-dvh flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto animate-fade-in"
+          className="fixed inset-0 z-[9999] w-screen h-screen min-h-dvh flex items-start sm:items-center justify-center p-4 py-8 bg-black/60 backdrop-blur-xs overflow-y-auto animate-fade-in"
           onClick={() => setDeletingCaseId(null)}
         >
           <div
-            className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border border-gray-100 text-center animate-scale-up"
+            className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border border-gray-100 text-center my-auto animate-scale-up"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-12 h-12 rounded-full bg-red-50 text-red-600 flex items-center justify-center mx-auto mb-3">

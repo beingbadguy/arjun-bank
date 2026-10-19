@@ -82,7 +82,7 @@ export default function Home() {
         <Sidebar />
         <div className="app-main">
           <Header />
-          <main className="flex-1 w-full min-w-0">{renderCurrentView()}</main>
+          <main className="flex-1 w-full min-w-0 pb-20 sm:pb-10">{renderCurrentView()}</main>
         </div>
       </div>
       <SupportDeskModal />

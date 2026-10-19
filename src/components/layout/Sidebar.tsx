@@ -45,17 +45,14 @@ export const Sidebar: React.FC = () => {
     setMounted(true);
   }, []);
 
-  // Prevent background scroll when mobile drawer is open
+  // Reset any body overflow lock on unmount or drawer close
   React.useEffect(() => {
-    if (mobileMenuOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
     return () => {
-      document.body.style.overflow = "";
+      if (typeof document !== "undefined") {
+        document.body.style.overflow = "";
+      }
     };
-  }, [mobileMenuOpen]);
+  }, []);
 
   const isSuperadmin = user?.role === "superadmin";
 
@@ -112,6 +109,11 @@ export const Sidebar: React.FC = () => {
       setIsLoggingOut(false);
       setShowLogoutModal(false);
     }
+  };
+
+  const handleSelectTab = (tabId: WorkspaceTab) => {
+    setActiveTab(tabId);
+    setMobileMenuOpen(false);
   };
 
   return (
@@ -177,7 +179,7 @@ export const Sidebar: React.FC = () => {
                           ? "bg-[#E3EDE0] text-[#143729] font-semibold"
                           : "text-[#576558] hover:bg-[#EEF4EB] hover:text-[#17241B]"
                       }`}
-                      onClick={() => setActiveTab(item.id)}
+                      onClick={() => handleSelectTab(item.id)}
                     >
                       <div className="flex items-center gap-2">
                         <span className={isActive ? "text-[#163A2C]" : "text-[#7B8B7C]"}>
@@ -214,7 +216,7 @@ export const Sidebar: React.FC = () => {
                             ? "bg-[#E3EDE0] text-[#143729] font-semibold"
                             : "text-[#576558] hover:bg-[#EEF4EB] hover:text-[#17241B]"
                         }`}
-                        onClick={() => setActiveTab(item.id)}
+                        onClick={() => handleSelectTab(item.id)}
                       >
                         <div className="flex items-center gap-2">
                           <span className={isActive ? "text-[#163A2C]" : "text-[#7B8B7C]"}>
@@ -363,13 +365,13 @@ export const Sidebar: React.FC = () => {
       {/* Logout Confirmation Modal - Teleported directly to document.body to cover the entire page */}
       {showLogoutModal && mounted && createPortal(
         <div
-          className="fixed inset-0 z-[9999] w-screen h-screen min-h-dvh flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto animate-fade-in"
+          className="fixed inset-0 z-[9999] w-screen h-screen min-h-dvh flex items-start sm:items-center justify-center p-4 py-8 bg-black/60 backdrop-blur-xs overflow-y-auto animate-fade-in"
           onClick={() => setShowLogoutModal(false)}
           role="dialog"
           aria-modal="true"
         >
           <div
-            className="bg-white rounded-xl border border-[#DCE4D9] p-5 max-w-sm w-full shadow-2xl animate-scale-up"
+            className="bg-white rounded-xl border border-[#DCE4D9] p-5 max-w-sm w-full shadow-2xl my-auto animate-scale-up"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between mb-3">
