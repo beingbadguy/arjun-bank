@@ -121,7 +121,7 @@ export const SupportDeskModal: React.FC = () => {
                     <UserCheck size={14} className="text-[#2563EB] shrink-0" />
                   </div>
                   <div className="text-[11.5px] font-semibold text-slate-500 truncate">
-                    Senior Process &amp; Underwriting Manager
+                     Process Manager
                   </div>
                 </div>
               </div>

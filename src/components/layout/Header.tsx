@@ -130,7 +130,7 @@ export const Header: React.FC = () => {
           type="button"
           onClick={() => setSupportModalOpen(true)}
           className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold text-white bg-[#163A2C] hover:bg-[#102B21] transition-all cursor-pointer shadow-2xs hover:shadow-xs active:scale-[0.98]"
-          title="Contact Process Manager (Support Desk)"
+          title="Contact Process Manager "
           id="header-contact-us-btn"
         >
           <PhoneCall size={13} className="text-[#DCE8D7] shrink-0" />
