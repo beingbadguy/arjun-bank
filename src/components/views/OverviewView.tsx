@@ -424,37 +424,6 @@ export const OverviewView: React.FC = () => {
             <span>→</span>
           </button>
         </div>
-
-        {/* Cases Vault (Locked) Card - Superadmin Only */}
-        {isSuperadmin && (
-          <div className="bg-white border border-[#DCE4D9] hover:border-[#163A2C]/40 rounded-xl p-4 flex flex-col justify-between transition-all hover:-translate-y-0.5 shadow-2xs group">
-            <div>
-              <div className="flex items-center justify-between mb-2.5">
-                <div className="w-8 h-8 rounded-lg bg-[#EBF4E9] text-[#163A2C] flex items-center justify-center">
-                  <FolderLock size={16} />
-                </div>
-                <span className="text-[10px] font-bold text-[#163A2C] bg-[#EAF2E8] px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  🔒 Locked Folder
-                </span>
-              </div>
-              <h3 className="text-sm font-bold tracking-tight text-[#17241B] mb-1">
-                My Cases (Vault)
-              </h3>
-              <p className="text-xs text-[#576558] leading-relaxed mb-3">
-                Private case records, bank logins, application tracking &amp; status entries. Superadmin access only.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setActiveTab("cases-vault")}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#163A2C] group-hover:gap-2 transition-all cursor-pointer w-fit"
-              id="overview-open-vault-btn"
-            >
-              <span>Open cases folder</span>
-              <span>→</span>
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Fresh Data Bottom Banner */}

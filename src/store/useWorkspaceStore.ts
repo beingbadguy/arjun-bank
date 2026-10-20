@@ -32,6 +32,14 @@ function getInitialTab(): WorkspaceTab {
     try {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get("tab") as WorkspaceTab | null;
+      if (tabParam === "cases-vault") {
+        window.location.replace("/private");
+        return "overview";
+      }
+      if (tabParam === "admin-access") {
+        window.location.replace("/admin");
+        return "overview";
+      }
       if (tabParam && VALID_TABS.includes(tabParam)) {
         return tabParam;
       }
@@ -45,7 +53,19 @@ function getInitialTab(): WorkspaceTab {
 function updateBrowserUrl(tab: WorkspaceTab) {
   if (typeof window === "undefined") return;
   try {
+    if (tab === "cases-vault") {
+      window.location.href = "/private";
+      return;
+    }
+    if (tab === "admin-access") {
+      window.location.href = "/admin";
+      return;
+    }
     const url = new URL(window.location.href);
+    if (url.pathname === "/private" || url.pathname === "/admin") {
+      window.location.href = `/?tab=${tab}`;
+      return;
+    }
     const currentTab = url.searchParams.get("tab");
     if (currentTab !== tab) {
       const paramsToClear = [
@@ -109,6 +129,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     try {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get("tab") as WorkspaceTab | null;
+      if (tabParam === "cases-vault") {
+        window.location.replace("/private");
+        return;
+      }
+      if (tabParam === "admin-access") {
+        window.location.replace("/admin");
+        return;
+      }
       if (tabParam && VALID_TABS.includes(tabParam)) {
         if (get().activeTab !== tabParam) {
           set({ activeTab: tabParam, mobileMenuOpen: false });
@@ -160,6 +188,14 @@ if (typeof window !== "undefined") {
     try {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get("tab") as WorkspaceTab | null;
+      if (tabParam === "cases-vault") {
+        window.location.replace("/private");
+        return;
+      }
+      if (tabParam === "admin-access") {
+        window.location.replace("/admin");
+        return;
+      }
       if (tabParam && VALID_TABS.includes(tabParam)) {
         useWorkspaceStore.getState().setActiveTab(tabParam, false);
       } else {

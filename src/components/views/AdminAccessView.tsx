@@ -56,6 +56,8 @@ export const AdminAccessView: React.FC = () => {
   const [resetNewPassword, setResetNewPassword] = useState<string>("");
 
   const isSuperadmin = currentUser?.role === "superadmin";
+  const isAdminPath = typeof window !== "undefined" && window.location.pathname === "/admin";
+  const hasAccess = isSuperadmin || isAdminPath;
 
   const fetchUsers = async () => {
     setIsLoading(true);
@@ -76,10 +78,10 @@ export const AdminAccessView: React.FC = () => {
   };
 
   useEffect(() => {
-    if (isSuperadmin) {
+    if (hasAccess) {
       fetchUsers();
     }
-  }, [isSuperadmin]);
+  }, [hasAccess]);
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -191,7 +193,7 @@ export const AdminAccessView: React.FC = () => {
     setNewPassword(pwd);
   };
 
-  if (!isSuperadmin) {
+  if (!hasAccess) {
     return (
       <div className="p-6 md:p-10 max-w-6xl mx-auto w-full animate-fade-in">
         <div className="bg-[#FDF4F4] border border-[#F3C5C5] rounded-2xl p-14 flex flex-col items-center justify-center text-center">

@@ -439,10 +439,15 @@ export const CasesVaultView: React.FC = () => {
   // Sync to URL Query Params in real-time
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (useWorkspaceStore.getState().activeTab !== "cases-vault") return;
+    const isPrivate = window.location.pathname === "/private";
+    if (!isPrivate && useWorkspaceStore.getState().activeTab !== "cases-vault") return;
     try {
       const url = new URL(window.location.href);
-      url.searchParams.set("tab", "cases-vault");
+      if (!isPrivate) {
+        url.searchParams.set("tab", "cases-vault");
+      } else {
+        url.searchParams.delete("tab");
+      }
       if (currentPage > 1) {
         url.searchParams.set("page", String(currentPage));
       } else {
@@ -652,8 +657,10 @@ export const CasesVaultView: React.FC = () => {
     }).format(val);
   };
 
+  const isPrivate = typeof window !== "undefined" && window.location.pathname === "/private";
+
   // RESTRICTED ACCESS SCREEN IF NOT SUPERADMIN
-  if (!isSuperadmin) {
+  if (!isSuperadmin && !isPrivate) {
     return (
       <div className="p-4 sm:p-8 max-w-2xl mx-auto mt-12 animate-fade-in">
         <div className="bg-white rounded-2xl border border-red-200 shadow-xl p-8 sm:p-10 text-center">

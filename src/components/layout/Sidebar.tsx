@@ -11,14 +11,12 @@ import {
   CheckCircle2,
   Files,
   Upload,
-  Lock,
   ShieldCheck,
   LogOut,
   X,
   AlertTriangle,
   Headphones,
   PhoneCall,
-  FolderLock,
   Award,
   GraduationCap,
 } from "lucide-react";
@@ -78,18 +76,6 @@ export const Sidebar: React.FC = () => {
     requiresSuperadmin?: boolean;
   }[] = [
     { id: "data-update", label: "Data update", icon: <Upload size={15} /> },
-    {
-      id: "admin-access",
-      label: "Admin access",
-      icon: <Lock size={15} />,
-      requiresSuperadmin: true,
-    },
-    {
-      id: "cases-vault",
-      label: "My Cases (Locked)",
-      icon: <FolderLock size={15} />,
-      requiresSuperadmin: true,
-    },
   ];
 
   const getInitials = (name?: string) => {

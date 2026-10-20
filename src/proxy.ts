@@ -17,8 +17,12 @@ export default function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2. Allow login and logout public authentication endpoints
-  if (pathname === "/api/auth/login" || pathname === "/api/auth/logout") {
+  // 2. Allow login, logout, and vault verification authentication endpoints
+  if (
+    pathname === "/api/auth/login" ||
+    pathname === "/api/auth/logout" ||
+    pathname.startsWith("/api/vault")
+  ) {
     return NextResponse.next();
   }
 

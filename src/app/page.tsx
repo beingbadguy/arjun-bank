@@ -26,6 +26,17 @@ export default function Home() {
   const { activeTab, syncFromUrl } = useWorkspaceStore();
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("tab") === "cases-vault") {
+        window.location.replace("/private");
+        return;
+      }
+      if (params.get("tab") === "admin-access") {
+        window.location.replace("/admin");
+        return;
+      }
+    }
     fetchMe();
     syncFromUrl();
   }, [fetchMe, syncFromUrl]);
@@ -66,9 +77,15 @@ export default function Home() {
       case "data-update":
         return <DataUpdateView />;
       case "admin-access":
-        return <AdminAccessView />;
+        if (typeof window !== "undefined") {
+          window.location.replace("/admin");
+        }
+        return <OverviewView />;
       case "cases-vault":
-        return <CasesVaultView />;
+        if (typeof window !== "undefined") {
+          window.location.replace("/private");
+        }
+        return <OverviewView />;
       case "training":
         return <TrainingView />;
       default:
