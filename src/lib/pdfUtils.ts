@@ -1,5 +1,6 @@
 import { PDFDocument, rgb, degrees, StandardFonts, PDFName } from "pdf-lib";
 import { encryptPDF } from "@pdfsmaller/pdf-encrypt";
+import { decryptPDF, isEncrypted } from "@pdfsmaller/pdf-decrypt";
 
 /**
  * Utility to download generated files in the browser
@@ -314,25 +315,90 @@ export async function protectPdf(
 }
 
 /**
- * 9. Unlock PDF (strip encryption dictionaries & re-save clean stream)
+ * Check if a PDF file is encrypted and detect algorithm
  */
-export async function unlockPdf(file: File): Promise<Uint8Array> {
-  const fileBytes = new Uint8Array(await file.arrayBuffer());
-  // Loads bypassing encryption constraints
-  const pdfDoc = await PDFDocument.load(fileBytes, { ignoreEncryption: true });
-  // Strip encryption from context and trailer
+export async function checkPdfEncryption(file: File): Promise<{
+  encrypted: boolean;
+  algorithm?: "AES-256" | "RC4";
+  version?: number;
+  revision?: number;
+  keyLength?: number;
+}> {
   try {
-    const encryptRef = (pdfDoc.context.trailerInfo as any)?.Encrypt;
-    if (encryptRef) {
-      (pdfDoc.context.trailerInfo as any).Encrypt = undefined;
-      if (typeof encryptRef === "object" && "objectNumber" in encryptRef) {
-        pdfDoc.context.delete(encryptRef);
-      }
-    }
-  } catch {
-    // Ignore if not present
+    const fileBytes = new Uint8Array(await file.arrayBuffer());
+    return await isEncrypted(fileBytes);
+  } catch (err) {
+    console.warn("Could not inspect PDF encryption status:", err);
+    return { encrypted: false };
   }
-  return await pdfDoc.save();
+}
+
+/**
+ * 9. Unlock PDF (decrypt streams with password and save clean, unencrypted PDF)
+ */
+export async function unlockPdf(
+  file: File,
+  password?: string
+): Promise<{ data: Uint8Array; wasEncrypted: boolean; algorithm?: string }> {
+  const fileBytes = new Uint8Array(await file.arrayBuffer());
+  const encInfo = await isEncrypted(fileBytes);
+
+  // If the document is not encrypted
+  if (!encInfo.encrypted) {
+    try {
+      const pdfDoc = await PDFDocument.load(fileBytes, { ignoreEncryption: true });
+      const cleanBytes = await pdfDoc.save();
+      return { data: cleanBytes, wasEncrypted: false };
+    } catch {
+      return { data: fileBytes, wasEncrypted: false };
+    }
+  }
+
+  const cleanPwd = (password || "").trim();
+
+  // If a password was provided by the user
+  if (cleanPwd) {
+    try {
+      const decryptedBytes = await decryptPDF(fileBytes, cleanPwd);
+      // Validate that decryptedBytes can be loaded as valid PDF
+      const verifyDoc = await PDFDocument.load(decryptedBytes, { ignoreEncryption: true });
+      if (verifyDoc.getPageCount() === 0) {
+        throw new Error("Decrypted document has 0 pages.");
+      }
+      return {
+        data: decryptedBytes,
+        wasEncrypted: true,
+        algorithm: encInfo.algorithm || "AES-256",
+      };
+    } catch (err: any) {
+      const msg = err?.message || "";
+      if (
+        msg.includes("password") ||
+        msg.includes("Incorrect") ||
+        msg.includes("match") ||
+        msg.includes("does not match")
+      ) {
+        throw new Error(
+          "Incorrect password. The password provided could not decrypt this document. Please check the password and try again."
+        );
+      }
+      throw new Error(`Failed to decrypt PDF document: ${msg}`);
+    }
+  }
+
+  // If no password provided, test empty password (for owner-only locks or empty user password)
+  try {
+    const decryptedBytes = await decryptPDF(fileBytes, "");
+    return {
+      data: decryptedBytes,
+      wasEncrypted: true,
+      algorithm: encInfo.algorithm || "AES-256",
+    };
+  } catch {
+    throw new Error(
+      "This PDF is password-protected. Please enter the password in the settings panel to unlock it."
+    );
+  }
 }
 
 /**

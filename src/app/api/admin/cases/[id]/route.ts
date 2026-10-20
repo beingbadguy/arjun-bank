@@ -20,6 +20,43 @@ async function requireSuperadmin(request: Request) {
   return { payload };
 }
 
+// GET /api/admin/cases/[id] - fetch a single case entry (Superadmin only)
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const authCheck = await requireSuperadmin(request);
+    if (authCheck.error) {
+      return NextResponse.json(
+        { error: authCheck.error },
+        { status: authCheck.status }
+      );
+    }
+
+    const { id } = await params;
+    await connectToDatabase();
+
+    const caseItem = await CaseEntry.findById(id).lean();
+    if (!caseItem) {
+      return NextResponse.json(
+        { error: "Case entry not found." },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      caseItem,
+    });
+  } catch (error: any) {
+    return NextResponse.json(
+      { error: error.message || "Failed to fetch case entry" },
+      { status: 500 }
+    );
+  }
+}
+
 // PUT /api/admin/cases/[id] - update a case entry (Superadmin only)
 export async function PUT(
   request: Request,

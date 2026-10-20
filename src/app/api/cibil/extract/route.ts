@@ -61,7 +61,7 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(arrayBuffer);
 
     // 6. Extraction Execution
-    const extractionResult = await parseCibilPdfBuffer(buffer);
+    const extractionResult = await parseCibilPdfBuffer(buffer, fileName);
 
     return NextResponse.json({
       ...extractionResult,

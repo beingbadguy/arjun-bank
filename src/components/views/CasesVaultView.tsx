@@ -24,8 +24,11 @@ import {
   FileSpreadsheet,
   Check,
   Eye,
+  Calendar,
   ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useWorkspaceStore } from "@/store/useWorkspaceStore";
@@ -134,28 +137,48 @@ export const CasesVaultView: React.FC = () => {
   const isSuperadmin = user?.role === "superadmin";
 
   const [cases, setCases] = useState<CaseRecord[]>([]);
+  const [totalMatching, setTotalMatching] = useState<number>(0);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [serverStats, setServerStats] = useState({
+    total: 0,
+    disbursedCount: 0,
+    disbursedAmt: 0,
+    loginCount: 0,
+    holdCount: 0,
+    rejectedCount: 0,
+    approvedCount: 0,
+    cancelledCount: 0,
+  });
+  const [availableBanks, setAvailableBanks] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const searchParams = useSearchParams();
   const initialPage = parseInt(searchParams.get("page") || "1", 10) || 1;
+  const initialLimit = parseInt(searchParams.get("limit") || "12", 10) || 12;
   const initialSearch = searchParams.get("search") || "";
   const initialStatus = searchParams.get("status") || "ALL";
   const initialBank = searchParams.get("bank") || "ALL";
 
   // Filters & Pagination synced with route query params
   const [searchQuery, setSearchQuery] = useState<string>(initialSearch);
+  const [debouncedSearch, setDebouncedSearch] = useState<string>(initialSearch);
   const [selectedStatus, setSelectedStatus] = useState<string>(initialStatus);
   const [selectedBank, setSelectedBank] = useState<string>(initialBank);
   const [currentPage, setCurrentPage] = useState<number>(initialPage);
+  const [pageSize, setPageSize] = useState<number>(initialLimit);
+  const [pageInput, setPageInput] = useState<string>(String(initialPage));
   const isFirstMount = useRef(true);
+  const tableTopRef = useRef<HTMLDivElement>(null);
 
   // Modals state
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [editingCase, setEditingCase] = useState<CaseRecord | null>(null);
+  const [viewingCase, setViewingCase] = useState<CaseRecord | null>(null);
   const [deletingCaseId, setDeletingCaseId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -173,28 +196,60 @@ export const CasesVaultView: React.FC = () => {
     approvedAmount: "",
   });
 
-  const fetchCases = async () => {
+  const fetchCases = async (
+    page = currentPage,
+    limit = pageSize,
+    search = debouncedSearch,
+    status = selectedStatus,
+    bank = selectedBank
+  ) => {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin/cases");
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("limit", String(limit));
+      if (search.trim()) params.set("search", search.trim());
+      if (status && status !== "ALL") params.set("status", status);
+      if (bank && bank !== "ALL") params.set("bank", bank);
+
+      const res = await fetch(`/api/admin/cases?${params.toString()}`);
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Failed to load cases");
+        throw new Error(data.error || "Failed to load cases from database");
       }
       setCases(data.cases || []);
+      if (data.pagination) {
+        setTotalPages(data.pagination.totalPages || 1);
+        setTotalMatching(data.pagination.total || 0);
+      }
+      if (data.stats) {
+        setServerStats(data.stats);
+      }
+      if (data.uniqueBanks) {
+        setAvailableBanks(data.uniqueBanks);
+      }
     } catch (err: any) {
-      setError(err.message || "Failed to fetch private cases");
+      setError(err.message || "Failed to fetch private cases from database");
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Fetch from database whenever page, size, debouncedSearch, status, or bank changes
   useEffect(() => {
     if (isSuperadmin) {
-      fetchCases();
+      fetchCases(currentPage, pageSize, debouncedSearch, selectedStatus, selectedBank);
     }
-  }, [isSuperadmin]);
+  }, [isSuperadmin, currentPage, pageSize, debouncedSearch, selectedStatus, selectedBank]);
 
   const resetForm = () => {
     setFormData({
@@ -327,36 +382,28 @@ export const CasesVaultView: React.FC = () => {
         setCases((prev) =>
           prev.map((c) => (c._id === id ? { ...c, status: newStatus } : c))
         );
+        setSuccessMessage(`Status updated to ${newStatus}`);
+        setTimeout(() => setSuccessMessage(null), 2500);
+        // Refresh server stats from DB
+        fetchCases(currentPage, pageSize, debouncedSearch, selectedStatus, selectedBank);
       }
     } catch (err) {
       console.error("Failed to update status", err);
     }
   };
 
-  // Filter & Search logic
-  const filteredCases = useMemo(() => {
-    return cases.filter((c) => {
-      const matchesStatus =
-        selectedStatus === "ALL" || c.status === selectedStatus;
-      const matchesBank = selectedBank === "ALL" || c.bankName === selectedBank;
+  const PAGE_SIZE_OPTIONS = [
+    { label: "12 cases", value: 12 },
+    { label: "25 cases", value: 25 },
+    { label: "50 cases", value: 50 },
+    { label: "100 cases", value: 100 },
+    { label: "Show All", value: 999999 },
+  ];
 
-      const q = searchQuery.toLowerCase().trim();
-      const matchesSearch =
-        !q ||
-        c.customerId?.toLowerCase().includes(q) ||
-        c.name?.toLowerCase().includes(q) ||
-        c.bankName?.toLowerCase().includes(q) ||
-        c.location?.toLowerCase().includes(q) ||
-        c.applicationNo?.toLowerCase().includes(q) ||
-        c.contactNo?.toLowerCase().includes(q) ||
-        c.panCard?.toLowerCase().includes(q) ||
-        c.remarks?.toLowerCase().includes(q);
-
-      return matchesStatus && matchesBank && matchesSearch;
-    });
-  }, [cases, selectedStatus, selectedBank, searchQuery]);
-
-  const pageSize = 12;
+  // Keep page input in sync with current page
+  useEffect(() => {
+    setPageInput(String(currentPage));
+  }, [currentPage]);
 
   // Reset page when search or filters change (skip initial mount to preserve URL page)
   useEffect(() => {
@@ -365,7 +412,29 @@ export const CasesVaultView: React.FC = () => {
       return;
     }
     setCurrentPage(1);
+    setPageInput("1");
   }, [searchQuery, selectedStatus, selectedBank]);
+
+  // Smooth scroll helper when switching pages
+  const scrollToTableTop = () => {
+    if (tableTopRef.current) {
+      tableTopRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  const handlePageChange = (newPage: number) => {
+    const target = Math.max(1, Math.min(newPage, totalPages));
+    setCurrentPage(target);
+    setPageInput(String(target));
+    scrollToTableTop();
+  };
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    setCurrentPage(1);
+    setPageInput("1");
+    scrollToTableTop();
+  };
 
   // Sync to URL Query Params in real-time
   useEffect(() => {
@@ -378,6 +447,11 @@ export const CasesVaultView: React.FC = () => {
         url.searchParams.set("page", String(currentPage));
       } else {
         url.searchParams.delete("page");
+      }
+      if (pageSize !== 12) {
+        url.searchParams.set("limit", String(pageSize));
+      } else {
+        url.searchParams.delete("limit");
       }
       if (searchQuery.trim()) {
         url.searchParams.set("search", searchQuery.trim());
@@ -398,17 +472,20 @@ export const CasesVaultView: React.FC = () => {
     } catch (e) {
       console.error("Failed to sync URL params", e);
     }
-  }, [currentPage, searchQuery, selectedStatus, selectedBank]);
+  }, [currentPage, pageSize, searchQuery, selectedStatus, selectedBank]);
 
   // Listen to browser Back/Forward popstate
   useEffect(() => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
       const p = parseInt(params.get("page") || "1", 10) || 1;
+      const l = parseInt(params.get("limit") || "12", 10) || 12;
       const s = params.get("search") || "";
       const st = params.get("status") || "ALL";
       const b = params.get("bank") || "ALL";
       setCurrentPage(p);
+      setPageSize(l);
+      setPageInput(String(p));
       setSearchQuery(s);
       setSelectedStatus(st);
       setSelectedBank(b);
@@ -417,23 +494,49 @@ export const CasesVaultView: React.FC = () => {
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
-  const totalPages = Math.max(1, Math.ceil(filteredCases.length / pageSize));
-
   useEffect(() => {
     if (currentPage > totalPages && totalPages > 0) {
       setCurrentPage(totalPages);
+      setPageInput(String(totalPages));
     }
   }, [currentPage, totalPages]);
 
-  const startIndex = (currentPage - 1) * pageSize;
-  const endIndex = Math.min(startIndex + pageSize, filteredCases.length);
+  const actualLimit = pageSize >= 999999 ? totalMatching : pageSize;
+  const startIndex = totalMatching === 0 ? 0 : (currentPage - 1) * actualLimit + 1;
+  const endIndex = Math.min((currentPage - 1) * actualLimit + cases.length, totalMatching);
 
-  const paginatedCases = useMemo(() => {
-    return filteredCases.slice(startIndex, startIndex + pageSize);
-  }, [filteredCases, startIndex, pageSize]);
+  // Calculate visible page buttons with ellipses
+  const getVisiblePages = () => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    const pages: (number | "ellipsis")[] = [];
+    pages.push(1);
 
-  // Statistics calculation
+    if (currentPage > 3) {
+      pages.push("ellipsis");
+    }
+
+    const start = Math.max(2, currentPage - 1);
+    const end = Math.min(totalPages - 1, currentPage + 1);
+
+    for (let i = start; i <= end; i++) {
+      pages.push(i);
+    }
+
+    if (currentPage < totalPages - 2) {
+      pages.push("ellipsis");
+    }
+
+    pages.push(totalPages);
+    return pages;
+  };
+
+  // Statistics calculation - use global database counts when available
   const stats = useMemo(() => {
+    if (serverStats && serverStats.total > 0) {
+      return serverStats;
+    }
     const total = cases.length;
     const disbursed = cases.filter((c) => c.status === "DISBURSED");
     const login = cases.filter((c) => c.status === "LOGIN");
@@ -455,67 +558,89 @@ export const CasesVaultView: React.FC = () => {
       rejectedCount: rejected.length,
       approvedCount: approved.length,
     };
-  }, [cases]);
+  }, [serverStats, cases]);
 
   // Unique bank names for dropdown filter
   const uniqueBanks = useMemo(() => {
+    if (availableBanks && availableBanks.length > 0) {
+      return availableBanks;
+    }
     const set = new Set<string>();
     cases.forEach((c) => {
       if (c.bankName) set.add(c.bankName);
     });
     return Array.from(set).sort();
-  }, [cases]);
+  }, [availableBanks, cases]);
 
-  // CSV Export
-  const handleExportCSV = () => {
-    if (filteredCases.length === 0) return;
+  // CSV Export - Fetches all matching DB records
+  const handleExportCSV = async () => {
+    if (totalMatching === 0) return;
+    setIsExporting(true);
+    try {
+      const params = new URLSearchParams();
+      params.set("page", "1");
+      params.set("limit", "999999");
+      if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim());
+      if (selectedStatus && selectedStatus !== "ALL") params.set("status", selectedStatus);
+      if (selectedBank && selectedBank !== "ALL") params.set("bank", selectedBank);
 
-    const headers = [
-      "Customer ID",
-      "Customer Name",
-      "Contact No",
-      "PAN Card",
-      "Product",
-      "Bank Name",
-      "Location",
-      "Status",
-      "Application No",
-      "Applied Amount",
-      "Approved Amount",
-      "Remarks",
-      "Last Update Date",
-    ];
+      const res = await fetch(`/api/admin/cases?${params.toString()}`);
+      const data = await res.json();
+      const exportList: CaseRecord[] = data.cases || cases;
 
-    const rows = filteredCases.map((c) => [
-      `"${c.customerId || ""}"`,
-      `"${c.name || ""}"`,
-      `"${c.contactNo || ""}"`,
-      `"${c.panCard || ""}"`,
-      `"${c.product || ""}"`,
-      `"${c.bankName || ""}"`,
-      `"${c.location || ""}"`,
-      `"${c.status || ""}"`,
-      `"${c.applicationNo || ""}"`,
-      c.appliedAmount || 0,
-      c.approvedAmount || 0,
-      `"${(c.remarks || "").replace(/"/g, '""')}"`,
-      `"${c.lastUpdateDate ? new Date(c.lastUpdateDate).toLocaleDateString("en-IN") : ""}"`,
-    ]);
+      if (!exportList || exportList.length === 0) return;
 
-    const csvContent =
-      "data:text/csv;charset=utf-8," +
-      [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+      const headers = [
+        "Customer ID",
+        "Customer Name",
+        "Contact No",
+        "PAN Card",
+        "Product",
+        "Bank Name",
+        "Location",
+        "Status",
+        "Application No",
+        "Applied Amount",
+        "Approved Amount",
+        "Remarks",
+        "Last Update Date",
+      ];
 
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute(
-      "download",
-      `cases_vault_export_${new Date().toISOString().slice(0, 10)}.csv`
-    );
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const rows = exportList.map((c) => [
+        `"${c.customerId || ""}"`,
+        `"${c.name || ""}"`,
+        `"${c.contactNo || ""}"`,
+        `"${c.panCard || ""}"`,
+        `"${c.product || ""}"`,
+        `"${c.bankName || ""}"`,
+        `"${c.location || ""}"`,
+        `"${c.status || ""}"`,
+        `"${c.applicationNo || ""}"`,
+        c.appliedAmount || 0,
+        c.approvedAmount || 0,
+        `"${(c.remarks || "").replace(/"/g, '""')}"`,
+        `"${c.lastUpdateDate ? new Date(c.lastUpdateDate).toLocaleDateString("en-IN") : ""}"`,
+      ]);
+
+      const csvContent =
+        "data:text/csv;charset=utf-8," +
+        [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute(
+        "download",
+        `cases_vault_export_${new Date().toISOString().slice(0, 10)}.csv`
+      );
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (e) {
+      console.error("Export CSV failed", e);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const formatCurrency = (val?: number) => {
@@ -581,7 +706,7 @@ export const CasesVaultView: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 shrink-0">
           <button
             type="button"
-            onClick={fetchCases}
+            onClick={() => fetchCases()}
             disabled={isLoading}
             className="p-2 sm:px-3 sm:py-2 bg-white hover:bg-[#EEF4EB] border border-[#DCE4D9] rounded-lg text-xs font-semibold text-[#17241B] flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
             title="Refresh vault records"
@@ -596,12 +721,12 @@ export const CasesVaultView: React.FC = () => {
           <button
             type="button"
             onClick={handleExportCSV}
-            disabled={filteredCases.length === 0}
+            disabled={totalMatching === 0 || isExporting}
             className="px-3 py-2 bg-white hover:bg-[#EEF4EB] border border-[#DCE4D9] rounded-lg text-xs font-semibold text-[#17241B] flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             title="Export filtered records as CSV"
           >
             <Download size={14} className="text-[#2563EB]" />
-            <span>Export CSV</span>
+            <span>{isExporting ? "Exporting..." : "Export CSV"}</span>
           </button>
 
           <button
@@ -783,8 +908,97 @@ export const CasesVaultView: React.FC = () => {
         </div>
       </div>
 
+      {/* Top Pagination Toolbar */}
+      <div
+        ref={tableTopRef}
+        className="bg-[#F8F9F5] border border-[#E3EBE0] border-b-0 rounded-t-xl p-3 sm:px-4 sm:py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-[#576558]"
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <span>
+            Showing <strong className="text-[#17241B]">{startIndex}</strong>
+            {totalMatching > 0 && (
+              <>
+                {" "}to <strong className="text-[#17241B]">{endIndex}</strong>
+              </>
+            )}{" "}
+            of <strong className="text-[#17241B]">{totalMatching}</strong> cases
+          </span>
+          {totalMatching > 0 && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#EBF4E9] text-[#163A2C] text-[10.5px] font-bold border border-[#DCE4D9]">
+              Page {currentPage} of {totalPages}
+            </span>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-end">
+          {/* Rows per page selector */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-semibold text-[#829283]">Show:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+              className="h-7 px-2 rounded-md border border-[#DCE4D9] bg-white text-xs font-bold text-[#17241B] outline-none focus:border-[#163A2C] cursor-pointer shadow-2xs"
+              title="Select number of cases to display per page"
+            >
+              {PAGE_SIZE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Quick Page navigation */}
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => handlePageChange(1)}
+                disabled={currentPage === 1}
+                className="h-7 px-1.5 rounded-md border border-[#DCE4D9] bg-white text-xs font-semibold text-[#17241B] hover:bg-[#EEF4EB] disabled:opacity-35 disabled:cursor-not-allowed transition-all cursor-pointer flex items-center justify-center active:scale-95"
+                title="First page"
+              >
+                <ChevronsLeft size={13} />
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="h-7 px-2 rounded-md border border-[#DCE4D9] bg-white text-xs font-semibold text-[#17241B] hover:bg-[#EEF4EB] disabled:opacity-35 disabled:cursor-not-allowed transition-all flex items-center gap-0.5 cursor-pointer active:scale-95"
+                title="Previous page"
+              >
+                <ChevronLeft size={13} />
+                <span className="hidden md:inline">Prev</span>
+              </button>
+              <span className="px-2 py-0.5 rounded bg-white border border-[#DCE4D9] text-[11px] font-bold text-[#163A2C]">
+                {currentPage} / {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="h-7 px-2 rounded-md border border-[#DCE4D9] bg-white text-xs font-semibold text-[#17241B] hover:bg-[#EEF4EB] disabled:opacity-35 disabled:cursor-not-allowed transition-all flex items-center gap-0.5 cursor-pointer active:scale-95"
+                title="Next page"
+              >
+                <span className="hidden md:inline">Next</span>
+                <ChevronRight size={13} />
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePageChange(totalPages)}
+                disabled={currentPage === totalPages}
+                className="h-7 px-1.5 rounded-md border border-[#DCE4D9] bg-white text-xs font-semibold text-[#17241B] hover:bg-[#EEF4EB] disabled:opacity-35 disabled:cursor-not-allowed transition-all cursor-pointer flex items-center justify-center active:scale-95"
+                title="Last page"
+              >
+                <ChevronsRight size={13} />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Cases Table - Faithfully matching spreadsheet screenshot */}
-      <div className="bg-white border border-[#E3EBE0] rounded-xl shadow-card overflow-hidden">
+      <div className="bg-white border border-[#E3EBE0] rounded-b-xl shadow-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[1200px]">
             {/* Yellow Header Row like spreadsheet */}
@@ -841,7 +1055,7 @@ export const CasesVaultView: React.FC = () => {
                     </div>
                   </td>
                 </tr>
-              ) : filteredCases.length === 0 ? (
+              ) : cases.length === 0 ? (
                 <tr>
                   <td colSpan={12} className="py-12 text-center text-gray-500">
                     <div className="flex flex-col items-center justify-center gap-2">
@@ -860,7 +1074,7 @@ export const CasesVaultView: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                paginatedCases.map((item) => {
+                cases.map((item) => {
                   const cfg =
                     STATUS_CONFIG[item.status] || STATUS_CONFIG.LOGIN;
                   return (
@@ -968,6 +1182,14 @@ export const CasesVaultView: React.FC = () => {
                         <div className="flex items-center justify-center gap-1">
                           <button
                             type="button"
+                            onClick={() => setViewingCase(item)}
+                            className="p-1 rounded text-gray-500 hover:text-[#163A2C] hover:bg-gray-200/70 transition-colors cursor-pointer"
+                            title="View Case Details"
+                          >
+                            <Eye size={13} />
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => handleOpenEdit(item)}
                             className="p-1 rounded text-gray-500 hover:text-[#163A2C] hover:bg-gray-200/70 transition-colors cursor-pointer"
                             title="Edit Case"
@@ -993,50 +1215,71 @@ export const CasesVaultView: React.FC = () => {
         </div>
 
         {/* Pagination Toolbar */}
-        <div className="p-3 sm:p-3.5 bg-[#F8F9F5] border-t border-[#ECEFE9] flex flex-col md:flex-row items-center justify-between text-xs text-[#576558] gap-3">
-          <div className="flex items-center gap-2">
+        <div className="p-3 sm:p-4 bg-[#F8F9F5] border-t border-[#ECEFE9] flex flex-col lg:flex-row items-center justify-between text-xs text-[#576558] gap-3 sm:gap-4">
+          <div className="flex flex-wrap items-center gap-2.5">
             <span>
               Showing{" "}
-              <strong>{filteredCases.length === 0 ? 0 : startIndex + 1}</strong>{" "}
-              to <strong>{endIndex}</strong> of{" "}
-              <strong>{filteredCases.length}</strong> cases
+              <strong className="text-[#17241B]">{startIndex}</strong>{" "}
+              {totalMatching > 0 && (
+                <>
+                  to <strong className="text-[#17241B]">{endIndex}</strong>{" "}
+                </>
+              )}
+              of <strong className="text-[#17241B]">{totalMatching}</strong> cases
             </span>
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#EBF4E9] text-[#163A2C] text-[10.5px] font-bold border border-[#DCE4D9]">
-              Limit: 12 at once
-            </span>
+            <span className="hidden sm:inline-block w-1 h-1 rounded-full bg-gray-300" />
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-semibold text-[#829283]">Show:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                className="h-8 px-2.5 rounded-lg border border-[#DCE4D9] bg-white text-xs font-bold text-[#17241B] outline-none focus:border-[#163A2C] cursor-pointer shadow-2xs"
+                title="Select number of cases to display per page"
+              >
+                {PAGE_SIZE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* Page controls */}
           {totalPages > 1 && (
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {/* First Page */}
               <button
                 type="button"
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                onClick={() => handlePageChange(1)}
                 disabled={currentPage === 1}
-                className="px-2.5 py-1.5 rounded-lg border border-[#DCE4D9] bg-white text-xs font-semibold text-[#17241B] hover:bg-[#EEF4EB] disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer active:scale-95"
+                className="h-8 px-2 rounded-lg border border-[#DCE4D9] bg-white text-xs font-semibold text-[#17241B] hover:bg-[#EEF4EB] disabled:opacity-35 disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
+                title="First page"
+              >
+                <ChevronsLeft size={14} />
+              </button>
+
+              {/* Prev Page */}
+              <button
+                type="button"
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="h-8 px-2.5 rounded-lg border border-[#DCE4D9] bg-white text-xs font-semibold text-[#17241B] hover:bg-[#EEF4EB] disabled:opacity-35 disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
                 title="Previous page"
               >
                 <ChevronLeft size={14} />
                 <span>Prev</span>
               </button>
 
+              {/* Page Number Pills */}
               <div className="flex items-center gap-1">
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
-                  // Only show current, first, last, and immediate neighbors if > 7 pages
-                  if (
-                    totalPages > 7 &&
-                    page !== 1 &&
-                    page !== totalPages &&
-                    Math.abs(page - currentPage) > 1
-                  ) {
-                    if (page === 2 || page === totalPages - 1) {
-                      return (
-                        <span key={page} className="px-1 text-gray-400">
-                          ...
-                        </span>
-                      );
-                    }
-                    return null;
+                {getVisiblePages().map((page, idx) => {
+                  if (page === "ellipsis") {
+                    return (
+                      <span key={`ellipsis-${idx}`} className="px-1 text-gray-400 font-bold">
+                        ...
+                      </span>
+                    );
                   }
 
                   const isActive = currentPage === page;
@@ -1044,10 +1287,10 @@ export const CasesVaultView: React.FC = () => {
                     <button
                       key={page}
                       type="button"
-                      onClick={() => setCurrentPage(page)}
+                      onClick={() => handlePageChange(page)}
                       className={`min-w-[32px] h-8 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                         isActive
-                          ? "bg-[#163A2C] text-white shadow-2xs"
+                          ? "bg-[#163A2C] text-white shadow-xs"
                           : "border border-[#DCE4D9] bg-white text-[#576558] hover:bg-[#EEF4EB] hover:text-[#17241B]"
                       }`}
                     >
@@ -1057,27 +1300,298 @@ export const CasesVaultView: React.FC = () => {
                 })}
               </div>
 
+              {/* Next Page */}
               <button
                 type="button"
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                onClick={() => handlePageChange(currentPage + 1)}
                 disabled={currentPage === totalPages}
-                className="px-2.5 py-1.5 rounded-lg border border-[#DCE4D9] bg-white text-xs font-semibold text-[#17241B] hover:bg-[#EEF4EB] disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer active:scale-95"
+                className="h-8 px-2.5 rounded-lg border border-[#DCE4D9] bg-white text-xs font-semibold text-[#17241B] hover:bg-[#EEF4EB] disabled:opacity-35 disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
                 title="Next page"
               >
                 <span>Next</span>
                 <ChevronRight size={14} />
               </button>
+
+              {/* Last Page */}
+              <button
+                type="button"
+                onClick={() => handlePageChange(totalPages)}
+                disabled={currentPage === totalPages}
+                className="h-8 px-2 rounded-lg border border-[#DCE4D9] bg-white text-xs font-semibold text-[#17241B] hover:bg-[#EEF4EB] disabled:opacity-35 disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
+                title="Last page"
+              >
+                <ChevronsRight size={14} />
+              </button>
+
+              {/* Direct Jump to Page */}
+              <div className="flex items-center gap-1 ml-1 pl-2 border-l border-[#DCE4D9]">
+                <span className="text-[11px] text-[#829283]">Go:</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={totalPages}
+                  value={pageInput}
+                  onChange={(e) => setPageInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      const val = parseInt(pageInput, 10);
+                      if (!isNaN(val) && val >= 1 && val <= totalPages) {
+                        handlePageChange(val);
+                      }
+                    }
+                  }}
+                  className="w-11 h-8 px-1 text-center rounded-lg border border-[#DCE4D9] bg-white text-xs font-semibold text-[#17241B] outline-none focus:border-[#163A2C]"
+                  title="Type page number and press Enter"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const val = parseInt(pageInput, 10);
+                    if (!isNaN(val) && val >= 1 && val <= totalPages) {
+                      handlePageChange(val);
+                    }
+                  }}
+                  className="h-8 px-2 rounded-lg border border-[#DCE4D9] bg-white text-[11px] font-bold text-[#163A2C] hover:bg-[#EEF4EB] cursor-pointer"
+                >
+                  Go
+                </button>
+              </div>
             </div>
           )}
 
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span className="text-[11px] text-[#6A7B6C]">
+            <span className="text-[11px] font-medium text-[#6A7B6C]">
               Vault Encrypted • Page {currentPage} of {totalPages}
             </span>
           </div>
         </div>
       </div>
+
+      {/* VIEW CASE DETAILS MODAL */}
+      {viewingCase && (
+        <div
+          className="fixed inset-0 z-[9999] w-screen h-screen min-h-dvh flex items-start sm:items-center justify-center p-3 sm:p-4 py-6 sm:py-8 bg-black/60 backdrop-blur-xs overflow-y-auto animate-fade-in"
+          onClick={() => setViewingCase(null)}
+        >
+          <div
+            className="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-7 max-w-xl w-full shadow-2xl border border-gray-100 my-auto animate-scale-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3.5 border-b border-gray-100 mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-[#EBF4E9] text-[#163A2C] flex items-center justify-center shadow-2xs">
+                  <FolderLock size={19} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-bold text-xs text-[#1E3A8A] bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                      {viewingCase.customerId || "VAULT RECORD"}
+                    </span>
+                    {(() => {
+                      const cfg =
+                        STATUS_CONFIG[viewingCase.status] || STATUS_CONFIG.LOGIN;
+                      return (
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10.5px] font-black uppercase tracking-tight border ${cfg.badgeBg} ${cfg.badgeText} ${cfg.border}`}
+                        >
+                          {viewingCase.status}
+                        </span>
+                      );
+                    })()}
+                  </div>
+                  <h3 className="text-base sm:text-lg font-black text-gray-900 uppercase mt-1 tracking-tight">
+                    {viewingCase.name}
+                  </h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingCase(null)}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                title="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Information Grid */}
+            <div className="space-y-4 text-xs">
+              {/* Financial & Application Metric Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="p-2.5 rounded-xl bg-gray-50 border border-gray-200">
+                  <div className="text-[10px] uppercase font-bold text-gray-500 mb-0.5">
+                    Applied Amount
+                  </div>
+                  <div className="font-mono font-bold text-gray-900 text-sm">
+                    {formatCurrency(viewingCase.appliedAmount)}
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200">
+                  <div className="text-[10px] uppercase font-bold text-emerald-700 mb-0.5">
+                    Approved Amount
+                  </div>
+                  <div className="font-mono font-bold text-emerald-800 text-sm">
+                    {formatCurrency(viewingCase.approvedAmount)}
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-xl bg-gray-50 border border-gray-200">
+                  <div className="text-[10px] uppercase font-bold text-gray-500 mb-0.5">
+                    Product
+                  </div>
+                  <div className="font-semibold text-gray-900 truncate">
+                    {viewingCase.product || "Personal Loan"}
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-xl bg-gray-50 border border-gray-200">
+                  <div className="text-[10px] uppercase font-bold text-gray-500 mb-0.5">
+                    App Number
+                  </div>
+                  <div className="font-mono font-bold text-gray-800 text-[11px] truncate">
+                    {viewingCase.applicationNo || "None"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Detailed Specs */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-xl bg-[#F8F9F5] border border-[#E3EBE0]">
+                <div className="flex items-center gap-2">
+                  <Building2 size={15} className="text-[#163A2C] shrink-0" />
+                  <div>
+                    <div className="text-[10px] uppercase font-semibold text-[#829283]">
+                      Lender Bank
+                    </div>
+                    <div className="font-bold text-[#17241B] uppercase text-xs">
+                      {viewingCase.bankName}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <MapPin size={15} className="text-[#163A2C] shrink-0" />
+                  <div>
+                    <div className="text-[10px] uppercase font-semibold text-[#829283]">
+                      Location / Branch
+                    </div>
+                    <div className="font-bold text-[#17241B] uppercase text-xs">
+                      {viewingCase.location}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Phone size={15} className="text-[#163A2C] shrink-0" />
+                  <div>
+                    <div className="text-[10px] uppercase font-semibold text-[#829283]">
+                      Applicant Contact
+                    </div>
+                    <div className="font-mono font-bold text-[#17241B] text-xs">
+                      {viewingCase.contactNo ? (
+                        <a
+                          href={`tel:${viewingCase.contactNo}`}
+                          className="hover:underline text-[#163A2C]"
+                        >
+                          {viewingCase.contactNo}
+                        </a>
+                      ) : (
+                        "Not Provided"
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <CreditCard size={15} className="text-[#163A2C] shrink-0" />
+                  <div>
+                    <div className="text-[10px] uppercase font-semibold text-[#829283]">
+                      PAN Card Number
+                    </div>
+                    <div className="font-mono font-bold text-[#17241B] text-xs uppercase">
+                      {viewingCase.panCard || "Not Provided"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Remarks */}
+              <div>
+                <div className="text-[10.5px] uppercase font-bold text-gray-500 mb-1">
+                  Underwriter / Sourcing Remarks
+                </div>
+                <div className="p-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 leading-relaxed font-medium">
+                  {viewingCase.remarks ? (
+                    viewingCase.remarks
+                  ) : (
+                    <span className="text-gray-400 italic">
+                      No remarks recorded for this case entry.
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Audit Meta */}
+              <div className="flex flex-wrap items-center justify-between text-[11px] text-gray-400 pt-2 border-t border-gray-100">
+                <div className="flex items-center gap-1">
+                  <Clock size={12} />
+                  <span>
+                    Last Updated:{" "}
+                    {viewingCase.lastUpdateDate
+                      ? new Date(viewingCase.lastUpdateDate).toLocaleString("en-IN")
+                      : "Recently"}
+                  </span>
+                </div>
+                {viewingCase.createdAt && (
+                  <div className="flex items-center gap-1">
+                    <Calendar size={12} />
+                    <span>
+                      Created: {new Date(viewingCase.createdAt).toLocaleDateString("en-IN")}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div className="flex items-center justify-between pt-4 mt-5 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => {
+                  const id = viewingCase._id;
+                  setViewingCase(null);
+                  setDeletingCaseId(id);
+                }}
+                className="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer"
+              >
+                <Trash2 size={13} />
+                <span>Delete</span>
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setViewingCase(null)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-all cursor-pointer"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const item = viewingCase;
+                    setViewingCase(null);
+                    handleOpenEdit(item);
+                  }}
+                  className="px-4 py-2 bg-[#163A2C] hover:bg-[#102B21] text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
+                >
+                  <Edit2 size={13} />
+                  <span>Edit Case</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ADD / EDIT CASE MODAL */}
       {showAddModal && (

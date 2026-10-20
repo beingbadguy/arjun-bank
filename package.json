@@ -7,9 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "migrate:atlas": "node scripts/migrate_to_atlas.js"
+    "migrate:atlas": "node scripts/migrate_to_atlas.js",
+    "test:cibil": "npx tsx tests/cibilExtraction.test.ts"
   },
   "dependencies": {
+    "@pdfsmaller/pdf-decrypt": "^1.0.1",
     "@pdfsmaller/pdf-encrypt": "^1.2.0",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/pdf-parse": "^1.1.5",

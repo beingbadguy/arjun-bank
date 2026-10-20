@@ -234,10 +234,10 @@ export const Sidebar: React.FC = () => {
             </ul>
           </div>
 
-          {/* Benefits & Bonuses - For all users */}
+          {/* Personal Loan Incentive - For all users */}
           <div>
             <div className="text-[9.5px] font-bold tracking-widest text-[#829283] uppercase px-2 mb-1.5">
-              BENEFITS &amp; REWARDS
+              INCENTIVES &amp; REWARDS
             </div>
             <ul className="flex flex-col gap-0.5 list-none p-0 m-0">
               <li>
@@ -258,7 +258,7 @@ export const Sidebar: React.FC = () => {
                     <span className="text-amber-500">
                       <Award size={15} />
                     </span>
-                    <span>Benefits &amp; Bonuses</span>
+                    <span>Personal Loan Incentive</span>
                   </div>
                   {benefitsModalOpen && (
                     <span className="w-1.5 h-1.5 rounded-full bg-[#257853]" />

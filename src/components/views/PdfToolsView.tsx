@@ -22,9 +22,8 @@ import {
   Edit3,
   Image as ImageIcon,
   FileImage,
-  PenTool,
-  Stamp,
   RotateCw,
+  PenTool,
   Code,
   Unlock,
   Shield,
@@ -35,6 +34,7 @@ import {
   FileUp,
   ArrowRight,
   Sparkles,
+  KeyRound,
 } from "lucide-react";
 import { useWorkspaceStore } from "@/store/useWorkspaceStore";
 import {
@@ -43,12 +43,11 @@ import {
   splitPdf,
   compressPdf,
   rotatePdf,
-  watermarkPdf,
   imagesToPdf,
-  signPdf,
   editPdf,
   protectPdf,
   unlockPdf,
+  checkPdfEncryption,
   htmlOrTextToPdf,
 } from "@/lib/pdfUtils";
 
@@ -60,13 +59,10 @@ export type ToolId =
   | "pdf-to-powerpoint"
   | "pdf-to-excel"
   | "word-to-pdf"
-  | "powerpoint-to-pdf"
   | "excel-to-pdf"
   | "edit"
   | "pdf-to-jpg"
   | "jpg-to-pdf"
-  | "sign"
-  | "watermark"
   | "rotate"
   | "html-to-pdf"
   | "unlock"
@@ -158,16 +154,7 @@ const PDF_TOOLS: ToolDefinition[] = [
     category: "convert-to",
     acceptTypes: ".doc,.docx,.txt,application/msword,text/plain",
   },
-  {
-    id: "powerpoint-to-pdf",
-    title: "PowerPoint to PDF",
-    description:
-      "Make PPT and PPTX slideshows easy to view by converting them to PDF.",
-    icon: <Presentation size={22} className="text-[#EA580C]" />,
-    iconBg: "bg-orange-50 border-orange-100",
-    category: "convert-to",
-    acceptTypes: ".ppt,.pptx,.txt",
-  },
+
   {
     id: "excel-to-pdf",
     title: "Excel to PDF",
@@ -211,26 +198,7 @@ const PDF_TOOLS: ToolDefinition[] = [
   },
 
   // Row 3
-  {
-    id: "sign",
-    title: "Sign PDF",
-    description:
-      "Sign yourself or request electronic signatures from others.",
-    icon: <PenTool size={22} className="text-[#1D4ED8]" />,
-    iconBg: "bg-blue-50 border-blue-100",
-    category: "edit-security",
-    acceptTypes: ".pdf,application/pdf",
-  },
-  {
-    id: "watermark",
-    title: "Watermark",
-    description:
-      "Stamp an image or text over your PDF in seconds. Choose the typography, transparency and position.",
-    icon: <Stamp size={22} className="text-[#9333EA]" />,
-    iconBg: "bg-purple-50 border-purple-100",
-    category: "edit-security",
-    acceptTypes: ".pdf,application/pdf",
-  },
+
   {
     id: "rotate",
     title: "Rotate PDF",
@@ -295,12 +263,7 @@ export const PdfToolsView: React.FC = () => {
   const [splitRange, setSplitRange] = useState<string>("1-2");
   const [compressionLevel, setCompressionLevel] = useState<string>("recommended");
   const [rotationAngle, setRotationAngle] = useState<number>(90);
-  const [watermarkText, setWatermarkText] = useState<string>("CONFIDENTIAL");
-  const [watermarkColor, setWatermarkColor] = useState<string>("#991B1B");
-  const [watermarkOpacity, setWatermarkOpacity] = useState<number>(0.35);
-  const [watermarkFontSize, setWatermarkFontSize] = useState<number>(44);
-  const [signPosition, setSignPosition] = useState<"bottom-right" | "bottom-left" | "bottom-center">("bottom-right");
-  const [signPageNum, setSignPageNum] = useState<number>(1);
+
   const [protectPassword, setProtectPassword] = useState<string>("LoanAdmin@2026");
   const [confirmProtectPassword, setConfirmProtectPassword] = useState<string>("LoanAdmin@2026");
   const [protectAlgorithm, setProtectAlgorithm] = useState<"AES-256" | "RC4">("AES-256");
@@ -312,68 +275,45 @@ export const PdfToolsView: React.FC = () => {
   const [editColor, setEditColor] = useState<string>("#163A2C");
   const [imageOrientation, setImageOrientation] = useState<"portrait" | "landscape">("portrait");
 
-  // Signature Canvas
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [isDrawing, setIsDrawing] = useState<boolean>(false);
-  const [hasSignature, setHasSignature] = useState<boolean>(false);
+  // Unlock PDF options
+  const [unlockPassword, setUnlockPassword] = useState<string>("");
+  const [showUnlockPassword, setShowUnlockPassword] = useState<boolean>(false);
+  const [detectedEncryption, setDetectedEncryption] = useState<{
+    encrypted: boolean;
+    algorithm?: string;
+  } | null>(null);
+  const [isDetectingEncryption, setIsDetectingEncryption] = useState<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const activeTool = PDF_TOOLS.find((t) => t.id === selectedToolId);
 
-  // Canvas drawing for Sign PDF
+  // Inspect uploaded PDF encryption status when Unlock tool is active
   useEffect(() => {
-    if (selectedToolId === "sign" && canvasRef.current) {
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.strokeStyle = "#163A2C";
-        ctx.lineWidth = 2.5;
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-      }
+    if (selectedToolId === "unlock" && uploadedFiles.length > 0) {
+      let isCurrent = true;
+      setIsDetectingEncryption(true);
+      checkPdfEncryption(uploadedFiles[0])
+        .then((res) => {
+          if (isCurrent) {
+            setDetectedEncryption(res);
+            setIsDetectingEncryption(false);
+          }
+        })
+        .catch(() => {
+          if (isCurrent) {
+            setDetectedEncryption(null);
+            setIsDetectingEncryption(false);
+          }
+        });
+      return () => {
+        isCurrent = false;
+      };
+    } else {
+      setDetectedEncryption(null);
+      setIsDetectingEncryption(false);
     }
-  }, [selectedToolId]);
-
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    setIsDrawing(true);
-    setHasSignature(true);
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    const rect = canvas.getBoundingClientRect();
-    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
-    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
-    ctx.beginPath();
-    ctx.moveTo(clientX - rect.left, clientY - rect.top);
-  };
-
-  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    const rect = canvas.getBoundingClientRect();
-    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
-    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
-    ctx.lineTo(clientX - rect.left, clientY - rect.top);
-    ctx.stroke();
-  };
-
-  const stopDrawing = () => {
-    setIsDrawing(false);
-  };
-
-  const clearSignature = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    setHasSignature(false);
-  };
+  }, [selectedToolId, uploadedFiles]);
 
   // Sync selectedToolId and searchQuery to URL Query Params
   useEffect(() => {
@@ -420,12 +360,18 @@ export const PdfToolsView: React.FC = () => {
     setUploadedFiles([]);
     setSuccessMsg(null);
     setErrorMsg(null);
+    setUnlockPassword("");
+    setShowUnlockPassword(false);
+    setDetectedEncryption(null);
   };
 
   const handleResetAll = () => {
     setUploadedFiles([]);
     setSuccessMsg(null);
     setErrorMsg(null);
+    setUnlockPassword("");
+    setShowUnlockPassword(false);
+    setDetectedEncryption(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -436,6 +382,9 @@ export const PdfToolsView: React.FC = () => {
     setUploadedFiles([]);
     setSuccessMsg(null);
     setErrorMsg(null);
+    setUnlockPassword("");
+    setShowUnlockPassword(false);
+    setDetectedEncryption(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -522,37 +471,11 @@ export const PdfToolsView: React.FC = () => {
           break;
         }
 
-        case "watermark": {
-          if (uploadedFiles.length === 0) throw new Error("Please upload a PDF file to watermark.");
-          const watermarkedData = await watermarkPdf(
-            uploadedFiles[0],
-            watermarkText,
-            watermarkOpacity,
-            watermarkFontSize,
-            watermarkColor
-          );
-          downloadBlob(watermarkedData, `${baseName}_watermarked.pdf`);
-          setSuccessMsg(`Watermark "${watermarkText}" stamped on all pages!`);
-          break;
-        }
-
         case "jpg-to-pdf": {
           if (uploadedFiles.length === 0) throw new Error("Please upload at least one image file (JPG/PNG).");
           const pdfData = await imagesToPdf(uploadedFiles, imageOrientation);
           downloadBlob(pdfData, `converted_images_${Date.now()}.pdf`);
           setSuccessMsg(`Converted ${uploadedFiles.length} image(s) to a high-quality PDF!`);
-          break;
-        }
-
-        case "sign": {
-          if (uploadedFiles.length === 0) throw new Error("Please upload a PDF file to sign.");
-          if (!canvasRef.current || !hasSignature) {
-            throw new Error("Please draw your signature in the signature box before applying.");
-          }
-          const signatureUrl = canvasRef.current.toDataURL("image/png");
-          const signedData = await signPdf(uploadedFiles[0], signatureUrl, signPageNum, signPosition);
-          downloadBlob(signedData, `${baseName}_signed.pdf`);
-          setSuccessMsg(`Electronic signature stamped on page ${signPageNum}!`);
           break;
         }
 
@@ -570,10 +493,18 @@ export const PdfToolsView: React.FC = () => {
         }
 
         case "unlock": {
-          if (uploadedFiles.length === 0) throw new Error("Please upload a protected PDF file.");
-          const unlockedData = await unlockPdf(uploadedFiles[0]);
-          downloadBlob(unlockedData, `${baseName}_unlocked.pdf`);
-          setSuccessMsg("PDF security restrictions removed! Document is now fully unlocked.");
+          if (uploadedFiles.length === 0) throw new Error("Please upload a PDF file to unlock.");
+          const res = await unlockPdf(uploadedFiles[0], unlockPassword);
+          downloadBlob(res.data, `${baseName}_unlocked.pdf`);
+          if (res.wasEncrypted) {
+            setSuccessMsg(
+              `PDF successfully unlocked and decrypted (${res.algorithm || "Standard"})! Password restrictions have been permanently removed.`
+            );
+          } else {
+            setSuccessMsg(
+              "Document security verified and restrictions removed! Document is now fully unlocked."
+            );
+          }
           break;
         }
 
@@ -587,7 +518,6 @@ export const PdfToolsView: React.FC = () => {
 
         case "html-to-pdf":
         case "word-to-pdf":
-        case "powerpoint-to-pdf":
         case "excel-to-pdf": {
           let docTitle = activeTool.title.replace(" to PDF", "");
           let contentToConvert = htmlContent;
@@ -844,9 +774,8 @@ export const PdfToolsView: React.FC = () => {
               {/* Dropzone Upload Area */}
               <div
                 onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed border-[#C6D8C4] hover:border-[#163A2C] bg-[#F8F9F5] hover:bg-[#F1F6EF] rounded-2xl text-center transition-all cursor-pointer ${
-                  uploadedFiles.length > 0 ? "p-4 sm:p-5" : "p-8 sm:p-10"
-                }`}
+                className={`border-2 border-dashed border-[#C6D8C4] hover:border-[#163A2C] bg-[#F8F9F5] hover:bg-[#F1F6EF] rounded-2xl text-center transition-all cursor-pointer ${uploadedFiles.length > 0 ? "p-4 sm:p-5" : "p-8 sm:p-10"
+                  }`}
               >
                 <input
                   ref={fileInputRef}
@@ -857,9 +786,8 @@ export const PdfToolsView: React.FC = () => {
                   className="hidden"
                 />
                 <div
-                  className={`rounded-xl bg-white text-[#163A2C] shadow-2xs flex items-center justify-center mx-auto ${
-                    uploadedFiles.length > 0 ? "w-10 h-10 mb-2" : "w-12 h-12 mb-3"
-                  }`}
+                  className={`rounded-xl bg-white text-[#163A2C] shadow-2xs flex items-center justify-center mx-auto ${uploadedFiles.length > 0 ? "w-10 h-10 mb-2" : "w-12 h-12 mb-3"
+                    }`}
                 >
                   <FileUp size={uploadedFiles.length > 0 ? 20 : 24} />
                 </div>
@@ -905,8 +833,14 @@ export const PdfToolsView: React.FC = () => {
                             <div className="font-semibold text-gray-900 truncate max-w-xs sm:max-w-md">
                               {file.name}
                             </div>
-                            <div className="text-[10px] text-gray-400">
-                              {(file.size / 1024).toFixed(1)} KB
+                            <div className="flex items-center gap-2 text-[10px] text-gray-400 mt-0.5">
+                              <span>{(file.size / 1024).toFixed(1)} KB</span>
+                              {activeTool.id === "unlock" && detectedEncryption?.encrypted && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold border border-amber-200 text-[9.5px]">
+                                  <Lock size={10} />
+                                  <span>Protected ({detectedEncryption.algorithm || "Encrypted"})</span>
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -1016,11 +950,10 @@ export const PdfToolsView: React.FC = () => {
                         <div
                           key={lvl.id}
                           onClick={() => setCompressionLevel(lvl.id)}
-                          className={`p-2.5 rounded-lg border cursor-pointer transition-all ${
-                            compressionLevel === lvl.id
-                              ? "bg-[#EBF4E9] border-[#163A2C] text-[#163A2C]"
-                              : "bg-white border-gray-200 text-gray-600"
-                          }`}
+                          className={`p-2.5 rounded-lg border cursor-pointer transition-all ${compressionLevel === lvl.id
+                            ? "bg-[#EBF4E9] border-[#163A2C] text-[#163A2C]"
+                            : "bg-white border-gray-200 text-gray-600"
+                            }`}
                         >
                           <div className="font-bold text-xs">{lvl.label}</div>
                           <div className="text-[10px] text-gray-500 leading-tight mt-0.5">{lvl.desc}</div>
@@ -1042,11 +975,10 @@ export const PdfToolsView: React.FC = () => {
                           key={deg}
                           type="button"
                           onClick={() => setRotationAngle(deg)}
-                          className={`px-3 py-1.5 rounded-lg border font-bold text-xs transition-all cursor-pointer ${
-                            rotationAngle === deg
-                              ? "bg-[#163A2C] text-white border-[#163A2C]"
-                              : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
-                          }`}
+                          className={`px-3 py-1.5 rounded-lg border font-bold text-xs transition-all cursor-pointer ${rotationAngle === deg
+                            ? "bg-[#163A2C] text-white border-[#163A2C]"
+                            : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                            }`}
                         >
                           {deg}° Clockwise
                         </button>
@@ -1055,135 +987,7 @@ export const PdfToolsView: React.FC = () => {
                   </div>
                 )}
 
-                {/* Watermark Tool Settings */}
-                {activeTool.id === "watermark" && (
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      <div>
-                        <label className="block font-bold text-gray-800 text-xs mb-1">
-                          Watermark Stamp Text:
-                        </label>
-                        <input
-                          type="text"
-                          value={watermarkText}
-                          onChange={(e) => setWatermarkText(e.target.value)}
-                          placeholder="e.g. CONFIDENTIAL / LOAN VERIFIED"
-                          className="w-full h-8 px-2.5 rounded-lg border border-gray-300 bg-white font-bold text-xs text-gray-900 outline-none focus:border-[#163A2C]"
-                        />
-                      </div>
-                      <div>
-                        <label className="block font-bold text-gray-800 text-xs mb-1">
-                          Stamp Color:
-                        </label>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="color"
-                            value={watermarkColor}
-                            onChange={(e) => setWatermarkColor(e.target.value)}
-                            className="w-8 h-8 p-0.5 rounded border border-gray-300 cursor-pointer bg-white"
-                          />
-                          <span className="font-mono text-xs text-gray-600">{watermarkColor}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      <div>
-                        <label className="block font-bold text-gray-800 text-xs mb-1">
-                          Opacity: {Math.round(watermarkOpacity * 100)}%
-                        </label>
-                        <input
-                          type="range"
-                          min="0.1"
-                          max="0.9"
-                          step="0.05"
-                          value={watermarkOpacity}
-                          onChange={(e) => setWatermarkOpacity(parseFloat(e.target.value))}
-                          className="w-full cursor-pointer accent-[#163A2C]"
-                        />
-                      </div>
-                      <div>
-                        <label className="block font-bold text-gray-800 text-xs mb-1">
-                          Font Size: {watermarkFontSize}px
-                        </label>
-                        <input
-                          type="range"
-                          min="24"
-                          max="72"
-                          step="2"
-                          value={watermarkFontSize}
-                          onChange={(e) => setWatermarkFontSize(parseInt(e.target.value, 10))}
-                          className="w-full cursor-pointer accent-[#163A2C]"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
 
-                {/* Sign PDF Settings with Interactive Canvas */}
-                {activeTool.id === "sign" && (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <label className="block font-bold text-gray-800 text-xs">
-                        Draw Electronic Signature Below:
-                      </label>
-                      <button
-                        type="button"
-                        onClick={clearSignature}
-                        className="text-xs text-red-600 font-semibold hover:underline cursor-pointer"
-                      >
-                        Clear Signature
-                      </button>
-                    </div>
-
-                    <div className="border border-gray-300 rounded-xl bg-white overflow-hidden shadow-2xs">
-                      <canvas
-                        ref={canvasRef}
-                        width={500}
-                        height={130}
-                        className="w-full h-32 bg-white cursor-crosshair touch-none"
-                        onMouseDown={startDrawing}
-                        onMouseMove={draw}
-                        onMouseUp={stopDrawing}
-                        onMouseLeave={stopDrawing}
-                        onTouchStart={startDrawing}
-                        onTouchMove={draw}
-                        onTouchEnd={stopDrawing}
-                      />
-                    </div>
-                    <p className="text-[11px] text-gray-500">
-                      Use your mouse or touch screen to draw your signature inside the box.
-                    </p>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                      <div>
-                        <label className="block font-bold text-gray-800 text-xs mb-1">
-                          Stamp on Page Number:
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={signPageNum}
-                          onChange={(e) => setSignPageNum(parseInt(e.target.value, 10) || 1)}
-                          className="w-full h-8 px-2.5 rounded-lg border border-gray-300 bg-white text-xs"
-                        />
-                      </div>
-                      <div>
-                        <label className="block font-bold text-gray-800 text-xs mb-1">
-                          Position on Page:
-                        </label>
-                        <select
-                          value={signPosition}
-                          onChange={(e) => setSignPosition(e.target.value as any)}
-                          className="w-full h-8 px-2.5 rounded-lg border border-gray-300 bg-white text-xs"
-                        >
-                          <option value="bottom-right">Bottom Right (Standard)</option>
-                          <option value="bottom-left">Bottom Left</option>
-                          <option value="bottom-center">Bottom Center</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                )}
 
                 {/* Protect PDF Settings */}
                 {activeTool.id === "protect" && (
@@ -1225,11 +1029,10 @@ export const PdfToolsView: React.FC = () => {
                         value={confirmProtectPassword}
                         onChange={(e) => setConfirmProtectPassword(e.target.value)}
                         placeholder="Re-enter password to confirm"
-                        className={`w-full h-9 px-3 rounded-lg border bg-white font-mono text-xs text-gray-900 outline-none transition-colors ${
-                          confirmProtectPassword && protectPassword !== confirmProtectPassword
-                            ? "border-red-400 focus:border-red-500"
-                            : "border-gray-300 focus:border-[#163A2C]"
-                        }`}
+                        className={`w-full h-9 px-3 rounded-lg border bg-white font-mono text-xs text-gray-900 outline-none transition-colors ${confirmProtectPassword && protectPassword !== confirmProtectPassword
+                          ? "border-red-400 focus:border-red-500"
+                          : "border-gray-300 focus:border-[#163A2C]"
+                          }`}
                       />
                       {confirmProtectPassword && protectPassword !== confirmProtectPassword && (
                         <p className="text-[10.5px] text-red-600 font-medium mt-1">
@@ -1246,11 +1049,10 @@ export const PdfToolsView: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => setProtectAlgorithm("AES-256")}
-                          className={`p-2 rounded-lg border text-left cursor-pointer transition-all ${
-                            protectAlgorithm === "AES-256"
-                              ? "bg-[#EBF4E9] border-[#163A2C] text-[#163A2C]"
-                              : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
-                          }`}
+                          className={`p-2 rounded-lg border text-left cursor-pointer transition-all ${protectAlgorithm === "AES-256"
+                            ? "bg-[#EBF4E9] border-[#163A2C] text-[#163A2C]"
+                            : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                            }`}
                         >
                           <div className="font-bold text-xs">AES-256</div>
                           <div className="text-[10px] text-gray-500 leading-tight mt-0.5">
@@ -1260,11 +1062,10 @@ export const PdfToolsView: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => setProtectAlgorithm("RC4")}
-                          className={`p-2 rounded-lg border text-left cursor-pointer transition-all ${
-                            protectAlgorithm === "RC4"
-                              ? "bg-[#EBF4E9] border-[#163A2C] text-[#163A2C]"
-                              : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
-                          }`}
+                          className={`p-2 rounded-lg border text-left cursor-pointer transition-all ${protectAlgorithm === "RC4"
+                            ? "bg-[#EBF4E9] border-[#163A2C] text-[#163A2C]"
+                            : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                            }`}
                         >
                           <div className="font-bold text-xs">RC4 128-bit</div>
                           <div className="text-[10px] text-gray-500 leading-tight mt-0.5">
@@ -1323,7 +1124,6 @@ export const PdfToolsView: React.FC = () => {
                 {/* HTML to PDF & Document conversions */}
                 {(activeTool.id === "html-to-pdf" ||
                   activeTool.id === "word-to-pdf" ||
-                  activeTool.id === "powerpoint-to-pdf" ||
                   activeTool.id === "excel-to-pdf") &&
                   uploadedFiles.length === 0 && (
                     <div className="space-y-2">
@@ -1347,22 +1147,20 @@ export const PdfToolsView: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setImageOrientation("portrait")}
-                        className={`px-3 py-1.5 rounded-lg border font-bold text-xs ${
-                          imageOrientation === "portrait"
-                            ? "bg-[#163A2C] text-white border-[#163A2C]"
-                            : "bg-white text-gray-700 border-gray-200"
-                        }`}
+                        className={`px-3 py-1.5 rounded-lg border font-bold text-xs ${imageOrientation === "portrait"
+                          ? "bg-[#163A2C] text-white border-[#163A2C]"
+                          : "bg-white text-gray-700 border-gray-200"
+                          }`}
                       >
                         Portrait (A4)
                       </button>
                       <button
                         type="button"
                         onClick={() => setImageOrientation("landscape")}
-                        className={`px-3 py-1.5 rounded-lg border font-bold text-xs ${
-                          imageOrientation === "landscape"
-                            ? "bg-[#163A2C] text-white border-[#163A2C]"
-                            : "bg-white text-gray-700 border-gray-200"
-                        }`}
+                        className={`px-3 py-1.5 rounded-lg border font-bold text-xs ${imageOrientation === "landscape"
+                          ? "bg-[#163A2C] text-white border-[#163A2C]"
+                          : "bg-white text-gray-700 border-gray-200"
+                          }`}
                       >
                         Landscape
                       </button>
@@ -1370,9 +1168,91 @@ export const PdfToolsView: React.FC = () => {
                   </div>
                 )}
 
+                {/* Unlock PDF Settings */}
+                {activeTool.id === "unlock" && (
+                  <div className="space-y-3.5">
+                    {/* Auto-detected Encryption Status */}
+                    {isDetectingEncryption ? (
+                      <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-xs text-blue-900 flex items-center gap-2">
+                        <RefreshCw size={14} className="animate-spin text-blue-600 shrink-0" />
+                        <span>Inspecting PDF encryption dictionary...</span>
+                      </div>
+                    ) : detectedEncryption?.encrypted ? (
+                      <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900">
+                        <div className="flex items-center gap-2 font-bold text-amber-900 mb-0.5">
+                          <Lock size={15} className="text-amber-700 shrink-0" />
+                          <span>Password Protection Detected</span>
+                        </div>
+                        <p className="text-[11px] text-amber-800 leading-snug">
+                          Security Standard: <strong>{detectedEncryption.algorithm || "AES-256"}</strong>.
+                          Enter the password below to permanently decrypt and unlock all pages.
+                        </p>
+                      </div>
+                    ) : uploadedFiles.length > 0 ? (
+                      <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900">
+                        <div className="flex items-center gap-2 font-bold text-emerald-900 mb-0.5">
+                          <CheckCircle2 size={15} className="text-emerald-700 shrink-0" />
+                          <span>No Open Password Detected</span>
+                        </div>
+                        <p className="text-[11px] text-emerald-800 leading-snug">
+                          Document opens freely without an open password. If it has editing or printing restrictions, clicking Unlock will strip them cleanly.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-white border border-[#E4ECE1] rounded-xl text-xs text-gray-600">
+                        <div className="font-semibold text-gray-800 mb-1 flex items-center gap-1.5">
+                          <Unlock size={14} className="text-[#2563EB]" />
+                          <span>Password Removal</span>
+                        </div>
+                        <p className="text-[11px] leading-relaxed text-gray-500">
+                          Upload your password-protected PDF to decrypt and remove its security lock permanently.
+                        </p>
+                      </div>
+                    )}
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block font-bold text-gray-800 text-xs">
+                          Document Password:
+                        </label>
+                        <span className="text-[10.5px] font-semibold text-[#163A2C]">
+                          Required if protected
+                        </span>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type={showUnlockPassword ? "text" : "password"}
+                          value={unlockPassword}
+                          onChange={(e) => setUnlockPassword(e.target.value)}
+                          placeholder="Enter PDF password to unlock"
+                          className="w-full h-9 pl-3 pr-9 rounded-lg border border-gray-300 bg-white font-mono text-xs text-gray-900 outline-none focus:border-[#163A2C] transition-all"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowUnlockPassword(!showUnlockPassword)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 cursor-pointer"
+                          title={showUnlockPassword ? "Hide password" : "Show password"}
+                        >
+                          {showUnlockPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-gray-500 mt-1 leading-snug">
+                        Type the correct password for this document. Once decrypted, you will receive a clean PDF that opens without any password prompt in any viewer.
+                      </p>
+                    </div>
+
+                    <div className="p-2.5 bg-blue-50/70 border border-blue-200 rounded-xl text-[11px] text-blue-900 flex items-start gap-2">
+                      <KeyRound size={14} className="shrink-0 mt-0.5 text-blue-700" />
+                      <span>
+                        Supports AES-256 and RC4 password decryption. Content streams, vector graphics, and text formatting are preserved cleanly.
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 {/* Default info for tools without custom options */}
-                {!["split", "compress", "rotate", "watermark", "sign", "protect", "edit", "jpg-to-pdf"].includes(activeTool.id) &&
-                  !(["html-to-pdf", "word-to-pdf", "powerpoint-to-pdf", "excel-to-pdf"].includes(activeTool.id) && uploadedFiles.length === 0) && (
+                {!["split", "compress", "rotate", "protect", "unlock", "edit", "jpg-to-pdf"].includes(activeTool.id) &&
+                  !(["html-to-pdf", "word-to-pdf", "excel-to-pdf"].includes(activeTool.id) && uploadedFiles.length === 0) && (
                     <div className="p-3 bg-white border border-[#E4ECE1] rounded-xl text-xs text-gray-600">
                       <div className="font-semibold text-gray-800 mb-1 flex items-center gap-1.5">
                         <Sparkles size={13} className="text-[#163A2C]" />
@@ -1382,8 +1262,8 @@ export const PdfToolsView: React.FC = () => {
                         {activeTool.id === "merge"
                           ? "Files will be concatenated in the numbered sequence. Use the up/down arrows on the left to adjust page order before merging."
                           : activeTool.id === "unlock"
-                          ? "Security flags, owner locks, and editing restrictions will be removed from your document."
-                          : `Click the button below to process your document securely with the ${activeTool.title} engine.`}
+                            ? "Security flags, owner locks, and editing restrictions will be removed from your document."
+                            : `Click the button below to process your document securely with the ${activeTool.title} engine.`}
                       </p>
                     </div>
                   )}
