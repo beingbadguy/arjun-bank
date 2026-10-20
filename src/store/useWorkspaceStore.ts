@@ -11,7 +11,8 @@ export type WorkspaceTab =
   | "data-update"
   | "admin-access"
   | "cases-vault"
-  | "training";
+  | "training"
+  | "bankers-search";
 
 export const VALID_TABS: WorkspaceTab[] = [
   "overview",
@@ -25,6 +26,7 @@ export const VALID_TABS: WorkspaceTab[] = [
   "admin-access",
   "cases-vault",
   "training",
+  "bankers-search",
 ];
 
 function getInitialTab(): WorkspaceTab {
@@ -38,6 +40,10 @@ function getInitialTab(): WorkspaceTab {
       }
       if (tabParam === "admin-access") {
         window.location.replace("/admin");
+        return "overview";
+      }
+      if (tabParam === "data-update") {
+        window.location.replace("/data");
         return "overview";
       }
       if (tabParam && VALID_TABS.includes(tabParam)) {
@@ -61,8 +67,12 @@ function updateBrowserUrl(tab: WorkspaceTab) {
       window.location.href = "/admin";
       return;
     }
+    if (tab === "data-update") {
+      window.location.href = "/data";
+      return;
+    }
     const url = new URL(window.location.href);
-    if (url.pathname === "/private" || url.pathname === "/admin") {
+    if (url.pathname === "/private" || url.pathname === "/admin" || url.pathname === "/data") {
       window.location.href = `/?tab=${tab}`;
       return;
     }
@@ -137,6 +147,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         window.location.replace("/admin");
         return;
       }
+      if (tabParam === "data-update") {
+        window.location.replace("/data");
+        return;
+      }
       if (tabParam && VALID_TABS.includes(tabParam)) {
         if (get().activeTab !== tabParam) {
           set({ activeTab: tabParam, mobileMenuOpen: false });
@@ -194,6 +208,10 @@ if (typeof window !== "undefined") {
       }
       if (tabParam === "admin-access") {
         window.location.replace("/admin");
+        return;
+      }
+      if (tabParam === "data-update") {
+        window.location.replace("/data");
         return;
       }
       if (tabParam && VALID_TABS.includes(tabParam)) {

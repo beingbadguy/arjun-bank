@@ -17,11 +17,12 @@ export default function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2. Allow login, logout, and vault verification authentication endpoints
+  // 2. Allow login, logout, and vault/data verification authentication endpoints
   if (
     pathname === "/api/auth/login" ||
     pathname === "/api/auth/logout" ||
-    pathname.startsWith("/api/vault")
+    pathname.startsWith("/api/vault") ||
+    pathname.startsWith("/api/data/verify")
   ) {
     return NextResponse.next();
   }

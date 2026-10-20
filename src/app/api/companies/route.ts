@@ -15,9 +15,9 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const query = searchParams.get("q") || "";
-    const category = searchParams.get("category") || "";
+    const category = searchParams.get("category") || searchParams.get("cat") || "";
     const lender = searchParams.get("lender") || "";
-    const limit = Math.min(parseInt(searchParams.get("limit") || "12", 10), 100);
+    const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "12", 10), 1), 100);
     const page = Math.max(parseInt(searchParams.get("page") || "1", 10), 1);
 
     await connectToDatabase();
@@ -25,24 +25,28 @@ export async function GET(request: Request) {
     const filter: any = {};
 
     if (query.trim()) {
-      filter.name = { $regex: query.trim(), $options: "i" };
+      const clean = query.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      filter.name = { $regex: clean, $options: "i" };
     }
 
-    if (category && category !== "all") {
+    if (category && category.toLowerCase() !== "all") {
       filter.category = category;
     }
 
-    if (lender && lender !== "all") {
-      filter["lenderCategories.lender"] = lender;
+    if (lender && lender.toLowerCase() !== "all") {
+      filter["lenderCategories.lender"] = { $regex: lender.trim(), $options: "i" };
     }
 
     const skip = (page - 1) * limit;
+    const totalCount = await Company.estimatedDocumentCount();
+    const hasFilter = Object.keys(filter).length > 0;
 
-    const [companies, matchedCount, totalCount] = await Promise.all([
+    const [companies, matchedCount] = await Promise.all([
       Company.find(filter).sort({ name: 1 }).skip(skip).limit(limit).lean(),
-      Company.countDocuments(filter),
-      Company.estimatedDocumentCount(),
+      hasFilter ? Company.countDocuments(filter) : totalCount,
     ]);
+
+    const totalPages = Math.max(1, Math.ceil(matchedCount / limit));
 
     return NextResponse.json({
       success: true,
@@ -52,9 +56,10 @@ export async function GET(request: Request) {
       count: companies.length,
       page,
       limit,
-      totalPages: Math.ceil(matchedCount / limit),
+      totalPages,
     });
   } catch (error: any) {
+    console.error("API /api/companies error:", error);
     return NextResponse.json(
       { error: error.message || "Failed to fetch companies" },
       { status: 500 }

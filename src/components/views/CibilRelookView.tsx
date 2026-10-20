@@ -1,12 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import {
-  RefreshCw,
   ArrowUpRight,
   CheckCircle,
-  UploadCloud,
   FileText,
   Plus,
   Trash2,
@@ -15,11 +13,9 @@ import {
   CheckCircle2,
   Sparkles,
   X,
-  FileCheck,
   Check,
   Copy,
   Layers,
-  ShieldAlert,
   HelpCircle,
   Eye,
   Calendar,
@@ -28,14 +24,12 @@ import {
   DollarSign,
   Clock,
   ArrowRight,
-  FileSpreadsheet,
+  Download,
 } from "lucide-react";
 import { useWorkspaceStore } from "@/store/useWorkspaceStore";
-import { generateDemoCibilPdf } from "@/lib/services/cibilDemoReport";
 import type {
   BureauLoanAccount,
   BureauCustomerProfile,
-  NormalizedBureauReport,
 } from "@/lib/services/cibil/types";
 import { calculateRelookMetrics } from "@/lib/services/cibil/calculator";
 import { generateRelookJustification } from "@/lib/services/cibil/justification";
@@ -44,6 +38,7 @@ import {
   maskAccountNumber,
   maskPan,
 } from "@/lib/services/cibil/utils";
+import { CibilDownloadView } from "./CibilDownloadView";
 
 const COMMON_LENDERS = [
   "HDFC Bank",
@@ -90,7 +85,7 @@ const LOAN_TYPES = [
   "Loan Against Bank Deposits",
 ];
 
-// Initial Manual Accounts for backward compatibility
+// Initial Manual Accounts for Simulation
 const INITIAL_MANUAL_ACCOUNTS: BureauLoanAccount[] = [
   {
     id: "manual-1",
@@ -100,9 +95,9 @@ const INITIAL_MANUAL_ACCOUNTS: BureauLoanAccount[] = [
     ownership: "Individual",
     status: "Open",
     sanctionAmount: 850000,
-    currentBalance: 240000,
+    currentBalance: 412000,
     amountOverdue: 0,
-    monthlyEmi: 18200,
+    monthlyEmi: 18450,
     interestRate: 8.75,
     repaymentTenure: 60,
     paymentFrequency: "Monthly",
@@ -114,7 +109,20 @@ const INITIAL_MANUAL_ACCOUNTS: BureauLoanAccount[] = [
     writtenOffPrincipal: null,
     settlementAmount: null,
     suitFiledWilfulDefault: null,
-    paymentHistory: [],
+    paymentHistory: [
+      { month: "09/26", dpdNumeric: 0, status: "000" },
+      { month: "08/26", dpdNumeric: 0, status: "000" },
+      { month: "07/26", dpdNumeric: 0, status: "000" },
+      { month: "06/26", dpdNumeric: 0, status: "000" },
+      { month: "05/26", dpdNumeric: 0, status: "000" },
+      { month: "04/26", dpdNumeric: 0, status: "000" },
+      { month: "03/26", dpdNumeric: 0, status: "000" },
+      { month: "02/26", dpdNumeric: 0, status: "000" },
+      { month: "01/26", dpdNumeric: 0, status: "000" },
+      { month: "12/25", dpdNumeric: 0, status: "000" },
+      { month: "11/25", dpdNumeric: 0, status: "000" },
+      { month: "10/25", dpdNumeric: 0, status: "000" },
+    ],
     maxDpd: 0,
     dpdSummaryString: "000/000 (Clear)",
     sourcePage: null,
@@ -130,22 +138,35 @@ const INITIAL_MANUAL_ACCOUNTS: BureauLoanAccount[] = [
     accountNumberMasked: "XXXX-9102",
     ownership: "Individual",
     status: "Open",
-    sanctionAmount: 200000,
-    currentBalance: 32000,
+    sanctionAmount: 180000,
+    currentBalance: 94500,
     amountOverdue: 0,
-    monthlyEmi: 3200,
-    interestRate: 36,
+    monthlyEmi: 4725,
+    interestRate: 42.0,
     repaymentTenure: null,
     paymentFrequency: "Monthly",
     openDate: "10/08/2022",
     closedDate: null,
-    lastPaymentDate: "10/09/2026",
+    lastPaymentDate: "20/09/2026",
     reportedDate: "30/09/2026",
     writtenOffTotal: null,
     writtenOffPrincipal: null,
     settlementAmount: null,
     suitFiledWilfulDefault: null,
-    paymentHistory: [{ month: "01-26", status: "030", dpdNumeric: 30 }],
+    paymentHistory: [
+      { month: "09/26", dpdNumeric: 0, status: "000" },
+      { month: "08/26", dpdNumeric: 0, status: "000" },
+      { month: "07/26", dpdNumeric: 0, status: "000" },
+      { month: "06/26", dpdNumeric: 0, status: "000" },
+      { month: "05/26", dpdNumeric: 0, status: "000" },
+      { month: "04/26", dpdNumeric: 0, status: "000" },
+      { month: "03/26", dpdNumeric: 0, status: "000" },
+      { month: "02/26", dpdNumeric: 30, status: "030" },
+      { month: "01/26", dpdNumeric: 0, status: "000" },
+      { month: "12/25", dpdNumeric: 0, status: "000" },
+      { month: "11/25", dpdNumeric: 0, status: "000" },
+      { month: "10/25", dpdNumeric: 0, status: "000" },
+    ],
     maxDpd: 30,
     dpdSummaryString: "030 (1 delayed payment 8 mos ago)",
     sourcePage: null,
@@ -223,8 +244,8 @@ export const CibilRelookView: React.FC = () => {
   const searchParams = useSearchParams();
   const initialScore = Number(searchParams.get("score")) || 762;
 
-  // Workflow Mode: Manual vs Upload
-  const [activeWorkflow, setActiveWorkflow] = useState<"manual" | "upload">("manual");
+  // Workflow Mode: Manual Simulation vs Download Bureau Reports
+  const [activeWorkflow, setActiveWorkflow] = useState<"manual" | "download">("manual");
 
   // Core Customer Profile State
   const [applicantName, setApplicantName] = useState<string>("Vikramaditya Sharma");
@@ -244,28 +265,12 @@ export const CibilRelookView: React.FC = () => {
   const [caseRemarks, setCaseRemarks] = useState<string>("");
   const [copyFeedback, setCopyFeedback] = useState<boolean>(false);
 
-  // Upload & Extraction Staging State (Requirement 7)
-  const [isUploading, setIsUploading] = useState<boolean>(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [uploadSuccessMsg, setUploadSuccessMsg] = useState<string | null>(null);
-  const [uploadWarnings, setUploadWarnings] = useState<string[]>([]);
-  const [isDragging, setIsDragging] = useState<boolean>(false);
-  const [uploadedFileName, setUploadedFileName] = useState<string>("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Staged Extracted Report for Review & Audit before committing
-  const [stagedReport, setStagedReport] = useState<NormalizedBureauReport | null>(null);
-  const [stagedAccounts, setStagedAccounts] = useState<BureauLoanAccount[]>([]);
-  const [stagedTabFilter, setStagedTabFilter] = useState<"open" | "closed" | "all">("open");
-  const [isReviewStage, setIsReviewStage] = useState<boolean>(false);
-
   // Payment History Inspect Modal
   const [inspectHistoryAccount, setInspectHistoryAccount] = useState<BureauLoanAccount | null>(null);
 
   // Modals for Adding / Editing Trade Lines
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [editingAccount, setEditingAccount] = useState<BureauLoanAccount | null>(null);
-  const [isEditingStagedItem, setIsEditingStagedItem] = useState<boolean>(false);
 
   // Form State for Add / Edit
   const [formData, setFormData] = useState<{
@@ -302,25 +307,27 @@ export const CibilRelookView: React.FC = () => {
     } catch {}
   }, [score]);
 
-  // ===================== DETERMINISTIC RELOOK ENGINE (REQUIREMENT 8) =====================
+  // Deterministic Relook Engine
   const currentMetrics = calculateRelookMetrics(accounts);
-  const stagedMetrics = stagedReport ? calculateRelookMetrics(stagedAccounts) : null;
-
   const scoreBand = getCreditScoreBand(score);
+  const unsecuredMonthlyEmi = accounts
+    .filter(
+      (a) =>
+        a.status === "Open" &&
+        (a.accountType.toLowerCase().includes("credit card") ||
+          a.accountType.toLowerCase().includes("personal"))
+    )
+    .reduce((sum, a) => sum + (a.monthlyEmi || 0), 0);
+  const maxDpdAcrossAll = Math.max(0, ...accounts.map((a) => a.maxDpd || 0));
+  const hasOverdueRisk = maxDpdAcrossAll > 0;
 
-  const toggleClosure = (id: string, isStaged = false) => {
-    if (isStaged) {
-      setStagedAccounts((prev) =>
-        prev.map((a) => (a.id === id ? { ...a, toClose: !a.toClose } : a))
-      );
-    } else {
-      setAccounts((prev) =>
-        prev.map((a) => (a.id === id ? { ...a, toClose: !a.toClose } : a))
-      );
-    }
+  const toggleClosure = (id: string) => {
+    setAccounts((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, toClose: !a.toClose } : a))
+    );
   };
 
-  // Generate verified Case Relook Justification (Requirement 9)
+  // Generate verified Case Relook Justification
   const handleGenerateJustification = () => {
     const customerProfile: BureauCustomerProfile = {
       fullName: applicantName,
@@ -347,167 +354,7 @@ export const CibilRelookView: React.FC = () => {
     setCaseRemarks(memo);
   };
 
-  // ===================== PDF UPLOAD PIPELINE =====================
-  const processPdfFile = async (file: File) => {
-    if (!file) return;
-
-    if (!file.name.toLowerCase().endsWith(".pdf") && file.type !== "application/pdf") {
-      setUploadError("Invalid file type. Only PDF credit reports (.pdf) are supported.");
-      return;
-    }
-
-    if (file.size > 15 * 1024 * 1024) {
-      setUploadError("File exceeds 15MB limit. Please upload a smaller credit report PDF.");
-      return;
-    }
-
-    setIsUploading(true);
-    setUploadError(null);
-    setUploadSuccessMsg(null);
-    setUploadWarnings([]);
-    setUploadedFileName(file.name);
-
-    try {
-      const formDataUpload = new FormData();
-      formDataUpload.append("file", file);
-
-      const res = await fetch("/api/cibil/extract", {
-        method: "POST",
-        body: formDataUpload,
-      });
-
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to extract credit report PDF.");
-      }
-
-      // If normalized report is returned, populate the Staging Review interface (Requirement 7)
-      if (data.normalizedReport) {
-        const norm: NormalizedBureauReport = data.normalizedReport;
-        setStagedReport(norm);
-        setStagedAccounts(norm.accounts);
-        setIsReviewStage(true);
-
-        if (norm.customer.fullName) {
-          setApplicantName(norm.customer.fullName);
-          setTempName(norm.customer.fullName);
-        }
-        if (norm.customer.score) {
-          setScore(norm.customer.score);
-        }
-        if (norm.customer.panMasked) {
-          setPanNumber(norm.customer.panMasked);
-        }
-        if (norm.customer.reportDate) {
-          setReportDate(norm.customer.reportDate);
-        }
-        if (norm.customer.bureauName) {
-          setBureauType(norm.customer.bureauName);
-        }
-        if (norm.customer.reportControlNumber) {
-          setControlNumber(norm.customer.reportControlNumber);
-        }
-
-        const warningStrings = norm.warnings.map((w: any) => `${w.code}: ${w.message}`);
-        setUploadWarnings(warningStrings);
-
-        setUploadSuccessMsg(
-          `Extracted ${norm.accounts.length} accounts from ${file.name}. Please review and audit trade lines below before committing.`
-        );
-      } else {
-        // Fallback for legacy format response
-        if (data.score) setScore(data.score);
-        if (data.applicantName) {
-          setApplicantName(data.applicantName);
-          setTempName(data.applicantName);
-        }
-        if (data.pan) setPanNumber(data.pan);
-        if (data.reportDate) setReportDate(data.reportDate);
-        if (data.bureauType) setBureauType(data.bureauType);
-        if (data.accounts && data.accounts.length > 0) {
-          const mappedAccounts: BureauLoanAccount[] = data.accounts.map((a: any) => ({
-            id: a.id,
-            lender: a.lender,
-            accountType: a.type,
-            accountNumberMasked: a.accountNumber || "XXXX",
-            ownership: "Individual",
-            status: a.status === "Closed" ? "Closed" : "Open",
-            sanctionAmount: a.sanctionAmount,
-            currentBalance: a.currentBalance,
-            amountOverdue: 0,
-            monthlyEmi: a.monthlyEmi,
-            interestRate: null,
-            repaymentTenure: null,
-            paymentFrequency: "Monthly",
-            openDate: a.openDate || null,
-            closedDate: a.closedDate || null,
-            lastPaymentDate: null,
-            reportedDate: null,
-            writtenOffTotal: null,
-            writtenOffPrincipal: null,
-            settlementAmount: null,
-            suitFiledWilfulDefault: null,
-            paymentHistory: a.paymentHistory || [],
-            maxDpd: a.maxDpd || 0,
-            dpdSummaryString: a.dpdStatus || "000/000 (Clear)",
-            sourcePage: a.sourcePage || null,
-            confidence: a.confidence || "high",
-            needsReview: a.needsVerification || false,
-            reviewReasons: a.verificationReason ? [a.verificationReason] : [],
-            toClose: a.toClose || false,
-          }));
-          setAccounts(mappedAccounts);
-        }
-        setUploadSuccessMsg(`CIBIL Report processed successfully!`);
-      }
-    } catch (err: any) {
-      console.error("PDF extraction error:", err);
-      setUploadError(
-        err.message || "Extraction failed. Please verify that the PDF is an unlocked credit report."
-      );
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  // Commit Staged Data to Relook Summary (Requirement 7)
-  const handleCommitStagedData = () => {
-    if (!stagedReport) return;
-    setAccounts(stagedAccounts);
-    setIsReviewStage(false);
-    setActiveWorkflow("upload");
-    setUploadSuccessMsg(
-      `Reviewed data committed! ${stagedAccounts.length} trade lines loaded into Relook Analysis.`
-    );
-  };
-
-  const handleDiscardStaged = () => {
-    setStagedReport(null);
-    setStagedAccounts([]);
-    setIsReviewStage(false);
-    setUploadedFileName("");
-  };
-
-  // Demo PDF generator
-  const handleLoadDemoPdf = async () => {
-    setIsUploading(true);
-    setUploadError(null);
-    setUploadSuccessMsg(null);
-    try {
-      const demoBytes = await generateDemoCibilPdf("Aarav Mehta", 785, "AARPM5678B");
-      const demoBlob = new Blob([demoBytes as any], { type: "application/pdf" });
-      const demoFile = new File([demoBlob], "CIBIL_Report_Aarav_Mehta.pdf", {
-        type: "application/pdf",
-      });
-      await processPdfFile(demoFile);
-    } catch (err: any) {
-      setUploadError(`Failed to generate demo report: ${err.message}`);
-      setIsUploading(false);
-    }
-  };
-
-  // Reset to default manual data
+  // Reset to default sample data
   const handleResetToManual = () => {
     setApplicantName("Vikramaditya Sharma");
     setTempName("Vikramaditya Sharma");
@@ -516,20 +363,12 @@ export const CibilRelookView: React.FC = () => {
     setReportDate("");
     setBureauType("");
     setControlNumber("");
-    setUploadedFileName("");
-    setUploadSuccessMsg(null);
-    setUploadError(null);
-    setUploadWarnings([]);
-    setStagedReport(null);
-    setStagedAccounts([]);
-    setIsReviewStage(false);
     setAccounts(INITIAL_MANUAL_ACCOUNTS);
     setCaseRemarks("");
   };
 
   // Modal Handlers
-  const handleOpenAddModal = (isStaged = false) => {
-    setIsEditingStagedItem(isStaged);
+  const handleOpenAddModal = () => {
     setFormData({
       lender: "HDFC Bank",
       type: "Personal Loan",
@@ -579,16 +418,11 @@ export const CibilRelookView: React.FC = () => {
       toClose: formData.toClose,
     };
 
-    if (isEditingStagedItem) {
-      setStagedAccounts([...stagedAccounts, newAccount]);
-    } else {
-      setAccounts([...accounts, newAccount]);
-    }
+    setAccounts([...accounts, newAccount]);
     setShowAddModal(false);
   };
 
-  const handleOpenEditModal = (acc: BureauLoanAccount, isStaged = false) => {
-    setIsEditingStagedItem(isStaged);
+  const handleOpenEditModal = (acc: BureauLoanAccount) => {
     setEditingAccount(acc);
     setFormData({
       lender: acc.lender,
@@ -607,7 +441,7 @@ export const CibilRelookView: React.FC = () => {
     e.preventDefault();
     if (!editingAccount) return;
 
-    const updater = (prevList: BureauLoanAccount[]) =>
+    setAccounts((prevList) =>
       prevList.map((a) =>
         a.id === editingAccount.id
           ? {
@@ -626,22 +460,13 @@ export const CibilRelookView: React.FC = () => {
               reviewReasons: [],
             }
           : a
-      );
-
-    if (isEditingStagedItem) {
-      setStagedAccounts(updater);
-    } else {
-      setAccounts(updater);
-    }
+      )
+    );
     setEditingAccount(null);
   };
 
-  const handleDeleteAccount = (id: string, isStaged = false) => {
-    if (isStaged) {
-      setStagedAccounts((prev) => prev.filter((a) => a.id !== id));
-    } else {
-      setAccounts((prev) => prev.filter((a) => a.id !== id));
-    }
+  const handleDeleteAccount = (id: string) => {
+    setAccounts((prev) => prev.filter((a) => a.id !== id));
   };
 
   const handleCopyClipboard = () => {
@@ -659,13 +484,6 @@ export const CibilRelookView: React.FC = () => {
     return true;
   });
 
-  // Filtered lists for staged table
-  const displayedStagedAccounts = stagedAccounts.filter((a) => {
-    if (stagedTabFilter === "open") return a.status === "Open";
-    if (stagedTabFilter === "closed") return a.status === "Closed";
-    return true;
-  });
-
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full animate-fade-in space-y-4">
       {/* View Header */}
@@ -679,7 +497,7 @@ export const CibilRelookView: React.FC = () => {
               CIBIL &amp; case relook.
             </h1>
             <p className="text-xs md:text-[13px] text-[#576558]">
-              Automated bureau extraction, verified audit review, and debt consolidation FOIR relook.
+              Download official credit bureau reports or manually simulate FOIR obligation relooks.
             </p>
           </div>
           <button
@@ -693,17 +511,14 @@ export const CibilRelookView: React.FC = () => {
         </div>
       </div>
 
-      {/* Workflow Tabs (Dual Workflows: Manual Entry & Upload CIBIL PDF) */}
+      {/* Workflow Tabs: Manual Entry & Simulation vs Download Bureau Reports */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-2.5 sm:p-3 rounded-2xl border border-[#E3EBE0] shadow-2xs">
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => {
-              setActiveWorkflow("manual");
-              setIsReviewStage(false);
-            }}
+            onClick={() => setActiveWorkflow("manual")}
             className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              activeWorkflow === "manual" && !isReviewStage
+              activeWorkflow === "manual"
                 ? "bg-[#163A2C] text-white shadow-2xs"
                 : "bg-[#F3F6F1] text-[#576558] hover:bg-[#E7EFE4] hover:text-[#17241B]"
             }`}
@@ -715,26 +530,23 @@ export const CibilRelookView: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => setActiveWorkflow("upload")}
+            onClick={() => setActiveWorkflow("download")}
             className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              activeWorkflow === "upload" || isReviewStage
+              activeWorkflow === "download"
                 ? "bg-[#163A2C] text-white shadow-2xs"
                 : "bg-[#F3F6F1] text-[#576558] hover:bg-[#E7EFE4] hover:text-[#17241B]"
             }`}
-            id="workflow-upload-tab"
+            id="workflow-download-tab"
           >
-            <UploadCloud size={14} />
-            <span>Upload CIBIL Report (PDF)</span>
+            <Download size={14} />
+            <span>Download Bureau Reports</span>
+            <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded-full ml-1">
+              7 Links
+            </span>
           </button>
         </div>
 
         <div className="flex items-center gap-2">
-          {uploadedFileName && (
-            <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg flex items-center gap-1.5">
-              <FileCheck size={13} className="text-emerald-600" />
-              <span>Loaded: {uploadedFileName}</span>
-            </span>
-          )}
           <button
             type="button"
             onClick={handleResetToManual}
@@ -746,903 +558,465 @@ export const CibilRelookView: React.FC = () => {
         </div>
       </div>
 
-      {/* ===================== UPLOAD AREA (WHEN UPLOAD WORKFLOW ACTIVE) ===================== */}
-      {activeWorkflow === "upload" && !isReviewStage && (
-        <div className="bg-white rounded-2xl border border-[#D5E4D2] p-4 sm:p-6 shadow-sm space-y-4 animate-scale-up">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#EEF3EC] pb-3">
-            <div>
-              <div className="flex items-center gap-2 text-sm sm:text-base font-bold text-[#163A2C]">
-                <FileText size={18} className="text-[#196D29]" />
-                <span>Automated CIBIL Report Extraction Engine</span>
-              </div>
-              <p className="text-xs text-[#576558] mt-0.5">
-                Drop customer CIBIL PDF (Format A Consumer or Format B BureauOne Institutional). Parsing is performed server-side in-memory for zero data persistence.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={handleLoadDemoPdf}
-              disabled={isUploading}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#EBF3E8] hover:bg-[#DEEBD9] text-[#163A2C] border border-[#C5DDC0] rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs shrink-0 self-start sm:self-auto"
-              id="test-sample-cibil-btn"
-            >
-              <Sparkles size={13} className="text-[#196D29]" />
-              <span>Test with Demo CIBIL PDF</span>
-            </button>
-          </div>
+      {/* ===================== DOWNLOAD HUB VIEW ===================== */}
+      {activeWorkflow === "download" && <CibilDownloadView />}
 
-          {/* Drag & Drop Zone */}
-          <div
-            onDragOver={(e) => {
-              e.preventDefault();
-              setIsDragging(true);
-            }}
-            onDragLeave={() => setIsDragging(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setIsDragging(false);
-              const file = e.dataTransfer.files?.[0];
-              if (file) processPdfFile(file);
-            }}
-            onClick={() => fileInputRef.current?.click()}
-            className={`border-2 border-dashed rounded-2xl p-6 sm:p-8 text-center cursor-pointer transition-all ${
-              isDragging
-                ? "border-[#163A2C] bg-[#EBF3E8]"
-                : "border-[#C7D9C3] hover:border-[#163A2C] bg-[#FAFBF9] hover:bg-[#F4F7F2]"
-            }`}
-          >
-            <input
-              type="file"
-              ref={fileInputRef}
-              accept="application/pdf,.pdf"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) processPdfFile(file);
-              }}
-            />
-            {isUploading ? (
-              <div className="flex flex-col items-center justify-center space-y-2">
-                <RefreshCw size={32} className="text-[#163A2C] animate-spin" />
-                <div className="font-bold text-sm text-[#17241B]">
-                  Extracting Credit Bureau Trade Lines &amp; DPD Tracks...
-                </div>
-                <div className="text-xs text-[#829283]">
-                  Preserving reading order, parsing account columns, and verifying payment histories
-                </div>
+      {/* ===================== MANUAL ENTRY & SIMULATION WORKFLOW ===================== */}
+      {activeWorkflow === "manual" && (
+        <div className="space-y-4">
+          {/* Extracted / Entered Customer Summary Pill Bar */}
+          {(bureauType || panNumber || reportDate) && (
+            <div className="bg-[#F8FAF6] p-3 rounded-xl border border-[#E3EBE0] flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="flex flex-wrap items-center gap-3">
+                {bureauType && (
+                  <span className="bg-[#EBF3E8] text-[#163A2C] font-bold px-2.5 py-0.5 rounded-full border border-[#D5E4D2]">
+                    {bureauType}
+                  </span>
+                )}
+                {panNumber && (
+                  <span className="text-[#576558]">
+                    PAN: <span className="font-mono font-bold text-[#17241B]">{panNumber}</span>
+                  </span>
+                )}
+                {reportDate && (
+                  <span className="text-[#576558]">
+                    Report Date: <span className="font-medium text-[#17241B]">{reportDate}</span>
+                  </span>
+                )}
+                {controlNumber && (
+                  <span className="text-[#829283] hidden sm:inline">
+                    Control No: <span className="font-mono">{controlNumber}</span>
+                  </span>
+                )}
               </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center space-y-2">
-                <div className="w-12 h-12 rounded-full bg-[#EBF3E8] text-[#163A2C] flex items-center justify-center shadow-2xs">
-                  <UploadCloud size={24} />
-                </div>
-                <div className="font-bold text-sm text-[#17241B]">
-                  Drop customer CIBIL PDF here, or <span className="text-[#163A2C] underline">browse file</span>
-                </div>
-                <div className="text-xs text-[#6A7B6C] max-w-md">
-                  Supports CIBIL Consumer Report (21-page) and Institutional Bureau (7-page) layouts (Max 15MB). Securely processed with zero logging of sensitive customer data.
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Upload Error Alert */}
-          {uploadError && (
-            <div className="bg-[#FDF2F2] border border-[#F8B4B4] text-[#9B1C1C] p-3.5 rounded-xl text-xs flex items-start gap-2.5 animate-fade-in">
-              <ShieldAlert size={16} className="shrink-0 mt-0.5 text-red-600" />
-              <div>
-                <span className="font-bold">Extraction Notice: </span>
-                <span>{uploadError}</span>
-              </div>
+              <span className="text-[11px] text-[#829283]">
+                {accounts.length} total trade lines in active engine
+              </span>
             </div>
           )}
 
-          {/* Success Banner */}
-          {uploadSuccessMsg && (
-            <div className="bg-[#EBF3E8] border border-[#CDE1C8] text-[#163A2C] p-3.5 rounded-xl text-xs flex items-start justify-between gap-2.5 animate-fade-in">
-              <div className="flex items-start gap-2.5">
-                <CheckCircle2 size={16} className="shrink-0 mt-0.5 text-emerald-600" />
-                <div>
-                  <span className="font-bold">Extraction Ready! </span>
-                  <span>{uploadSuccessMsg}</span>
-                </div>
+          {/* Top Score & Summary Banner */}
+          <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_2fr] gap-4">
+            {/* Score Dial Box */}
+            <div className="bg-white rounded-xl border border-[#E3EBE0] p-4 md:p-5 flex flex-col items-center justify-center text-center shadow-xs">
+              <div className="text-[10px] font-bold tracking-widest text-[#829283] uppercase mb-1.5">
+                BUREAU SCORE (CIBIL / TRANSUNION)
               </div>
-              <button
-                type="button"
-                onClick={() => setUploadSuccessMsg(null)}
-                className="text-gray-400 hover:text-gray-700 cursor-pointer"
+              <div className="text-4xl md:text-5xl font-extrabold font-mono text-[#163A2C] leading-none mb-1.5">
+                {score}
+              </div>
+              <div
+                className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${scoreBand.bg} ${scoreBand.color} mb-3`}
               >
-                <X size={14} />
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+                {scoreBand.label}
+              </div>
 
-      {/* ===================== STAGING & AUDIT REVIEW INTERFACE (REQUIREMENT 7) ===================== */}
-      {isReviewStage && stagedReport && (
-        <div className="bg-white rounded-2xl border-2 border-[#163A2C]/30 p-4 sm:p-6 shadow-md space-y-4 animate-scale-up">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-[#EEF3EC] pb-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="bg-[#163A2C] text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  Audit &amp; Staging Step
-                </span>
-                <h2 className="text-base sm:text-lg font-bold text-[#17241B]">
-                  Review Extracted Bureau Data Before Committing
-                </h2>
-              </div>
-              <p className="text-xs text-[#576558] mt-1">
-                Verify customer profile, verify trade line balances against source pages, and correct any low-confidence fields before applying to Case Relook.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleDiscardStaged}
-                className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:text-gray-900 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer"
-              >
-                Discard &amp; Re-upload
-              </button>
-              <button
-                type="button"
-                onClick={handleCommitStagedData}
-                className="px-4 py-1.5 text-xs font-bold text-white bg-[#163A2C] hover:bg-[#102B21] rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
-                id="confirm-commit-btn"
-              >
-                <CheckCircle2 size={14} className="text-emerald-400" />
-                <span>Confirm &amp; Apply to Case Relook</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Staged Metadata Badges */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-[#F8FAF6] p-3 rounded-xl border border-[#E3EBE0] text-xs">
-            <div>
-              <div className="text-[10px] text-[#829283] uppercase font-bold">Detected Format</div>
-              <div className="font-bold text-[#163A2C] truncate">
-                {stagedReport.formatDetected === "cibil_consumer"
-                  ? "CIBIL Consumer (Format A)"
-                  : stagedReport.formatDetected === "cibil_institutional"
-                  ? "BureauOne / Institutional (Format B)"
-                  : stagedReport.formatDetected}
-              </div>
-            </div>
-            <div>
-              <div className="text-[10px] text-[#829283] uppercase font-bold">Total Pages</div>
-              <div className="font-bold text-[#17241B]">
-                {stagedReport.meta.totalPages} pages ({stagedReport.meta.textLength.toLocaleString()} chars)
-              </div>
-            </div>
-            <div>
-              <div className="text-[10px] text-[#829283] uppercase font-bold">Accounts Found</div>
-              <div className="font-bold text-[#17241B]">
-                {stagedAccounts.length} accounts ({stagedAccounts.filter((a) => a.status === "Open").length} Open,{" "}
-                {stagedAccounts.filter((a) => a.status === "Closed").length} Closed)
-              </div>
-            </div>
-            <div>
-              <div className="text-[10px] text-[#829283] uppercase font-bold">Reconciliation Status</div>
-              <div className="font-bold text-emerald-800 flex items-center gap-1">
-                <Check size={13} className="text-emerald-600" />
-                <span>Verified Match</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Staged Customer Profile (Editable) */}
-          <div className="bg-[#FAFBF9] p-3.5 rounded-xl border border-[#E3EBE0]">
-            <div className="text-[11px] font-bold text-[#17241B] uppercase tracking-wider mb-2">
-              Customer Profile Fields
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-              <div>
-                <label className="block text-[10px] text-[#829283] font-bold mb-1">Borrower Name</label>
+              <div className="w-full px-2">
                 <input
-                  type="text"
-                  value={applicantName}
-                  onChange={(e) => setApplicantName(e.target.value)}
-                  className="w-full h-8 px-2.5 font-bold border border-gray-200 rounded-lg bg-white outline-none focus:border-[#163A2C]"
+                  type="range"
+                  min="300"
+                  max="900"
+                  value={score}
+                  onChange={(e) => setScore(Number(e.target.value))}
+                  className="w-full accent-[#163A2C] cursor-pointer"
                 />
+                <div className="flex justify-between text-[10px] text-[#829283] mt-1">
+                  <span>300 (Poor)</span>
+                  <span>750 (Prime)</span>
+                  <span>900 (Excellent)</span>
+                </div>
               </div>
+            </div>
+
+            {/* Obligation Summary Box */}
+            <div className="bg-white rounded-xl border border-[#E3EBE0] p-4 md:p-5 flex flex-col justify-between shadow-xs">
               <div>
-                <label className="block text-[10px] text-[#829283] font-bold mb-1">CIBIL Score</label>
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="number"
-                    min="300"
-                    max="900"
-                    value={score}
-                    onChange={(e) => setScore(Number(e.target.value))}
-                    className="w-20 h-8 px-2 font-mono font-bold border border-gray-200 rounded-lg bg-white outline-none focus:border-[#163A2C]"
-                  />
-                  <span className={`text-[10.5px] font-bold px-2 py-1 rounded-md ${scoreBand.bg} ${scoreBand.color}`}>
-                    {scoreBand.label}
+                <div className="text-[10px] font-bold tracking-widest text-[#829283] uppercase mb-1">
+                  OBLIGATION &amp; BURDEN ANALYSIS
+                </div>
+
+                {/* Editable Applicant Name */}
+                <div className="flex items-center gap-2 mb-3">
+                  {isEditingName ? (
+                    <div className="flex items-center gap-1.5 w-full max-w-sm">
+                      <input
+                        type="text"
+                        value={tempName}
+                        onChange={(e) => setTempName(e.target.value)}
+                        className="h-8 px-2.5 text-xs sm:text-sm font-bold border border-[#CADBC4] rounded-lg bg-white outline-none focus:border-[#163A2C] flex-1"
+                        placeholder="Enter borrower name"
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (tempName.trim()) setApplicantName(tempName.trim());
+                          setIsEditingName(false);
+                        }}
+                        className="h-8 px-2.5 bg-[#163A2C] text-white rounded-lg text-xs font-semibold hover:bg-[#102B21] transition-colors cursor-pointer"
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTempName(applicantName);
+                          setIsEditingName(false);
+                        }}
+                        className="h-8 px-2 text-xs text-[#576558] hover:text-[#17241B]"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="text-base sm:text-lg font-bold text-[#17241B]">
+                        {applicantName}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTempName(applicantName);
+                          setIsEditingName(true);
+                        }}
+                        className="p-1 text-[#829283] hover:text-[#163A2C] transition-colors cursor-pointer"
+                        title="Edit applicant name"
+                      >
+                        <Edit3 size={13} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Live Burden Metrics */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
+                  <div className="bg-[#FAFBF9] p-2.5 rounded-lg border border-[#EEF2EB]">
+                    <div className="text-[10px] text-[#829283] font-semibold">Current Monthly EMI</div>
+                    <div className="text-sm sm:text-base font-bold font-mono text-[#17241B]">
+                      ₹{currentMetrics.currentLiveMonthlyEmi.toLocaleString("en-IN")}
+                    </div>
+                  </div>
+
+                  <div className="bg-[#FAFBF9] p-2.5 rounded-lg border border-[#EEF2EB]">
+                    <div className="text-[10px] text-[#829283] font-semibold">Post-Relook EMI</div>
+                    <div className="text-sm sm:text-base font-bold font-mono text-emerald-800">
+                      ₹{currentMetrics.postClosureMonthlyEmi.toLocaleString("en-IN")}
+                    </div>
+                  </div>
+
+                  <div className="bg-[#FAFBF9] p-2.5 rounded-lg border border-[#EEF2EB] col-span-2 sm:col-span-1">
+                    <div className="text-[10px] text-[#829283] font-semibold">Monthly EMI Relief</div>
+                    <div className="text-sm sm:text-base font-bold font-mono text-amber-800">
+                      ₹{currentMetrics.slatedClosureEmiRelief.toLocaleString("en-IN")}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Debt Consolidation / Closure Callout */}
+              <div className="bg-[#EBF4E9] p-2.5 rounded-lg border border-[#D3E4D0] flex items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <Sparkles size={14} className="text-[#257853]" />
+                  <span className="text-[#163A2C] font-semibold text-[11px] sm:text-xs">
+                    {currentMetrics.slatedForClosureCount > 0 ? (
+                      <>
+                        <strong>{currentMetrics.slatedForClosureCount} account(s)</strong> slated
+                        for closure saves{" "}
+                        <strong>₹{currentMetrics.slatedClosureEmiRelief.toLocaleString("en-IN")}/mo</strong>,
+                        reducing FOIR burden.
+                      </>
+                    ) : (
+                      <>Select accounts to close below to simulate FOIR relook relief.</>
+                    )}
                   </span>
                 </div>
-              </div>
-              <div>
-                <label className="block text-[10px] text-[#829283] font-bold mb-1">PAN Number</label>
-                <input
-                  type="text"
-                  value={panNumber}
-                  onChange={(e) => setPanNumber(e.target.value)}
-                  placeholder="e.g. BSW****2J"
-                  className="w-full h-8 px-2.5 font-mono border border-gray-200 rounded-lg bg-white outline-none focus:border-[#163A2C]"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] text-[#829283] font-bold mb-1">Report Date</label>
-                <input
-                  type="text"
-                  value={reportDate}
-                  onChange={(e) => setReportDate(e.target.value)}
-                  placeholder="DD/MM/YYYY"
-                  className="w-full h-8 px-2.5 border border-gray-200 rounded-lg bg-white outline-none focus:border-[#163A2C]"
-                />
+                <button
+                  type="button"
+                  onClick={handleGenerateJustification}
+                  className="px-3 py-1 bg-[#163A2C] hover:bg-[#102B21] text-white rounded-md text-[11px] font-bold transition-all shrink-0 cursor-pointer shadow-xs"
+                >
+                  Generate Relook Memo
+                </button>
               </div>
             </div>
           </div>
 
-          {/* Staged Warnings / Discrepancies */}
-          {uploadWarnings.length > 0 && (
-            <div className="bg-amber-50/70 border border-amber-200 text-amber-900 p-3 rounded-xl text-xs space-y-1">
-              <div className="font-bold flex items-center gap-1.5 text-amber-800 text-[11px]">
-                <AlertTriangle size={13} />
-                <span>Verification Checklist &amp; Anomaly Warnings ({uploadWarnings.length}):</span>
+          {/* Metrics Row: 4 Metric Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-white p-3 sm:p-4 rounded-xl border border-[#E3EBE0] shadow-xs">
+              <div className="text-[10.5px] font-bold text-[#829283] uppercase mb-1">
+                Open Accounts
               </div>
-              <ul className="list-disc pl-5 space-y-0.5 text-[11px] text-amber-800">
-                {uploadWarnings.map((w, idx) => (
-                  <li key={idx}>{w}</li>
-                ))}
-              </ul>
+              <div className="text-xl sm:text-2xl font-bold font-mono text-[#17241B]">
+                {currentMetrics.activeAccountsCount}
+                <span className="text-xs font-normal text-[#829283] ml-1.5">
+                  / {accounts.length} total
+                </span>
+              </div>
+              <div className="text-[11px] text-[#576558] mt-0.5">
+                {currentMetrics.closedAccountsCount} closed / settled
+              </div>
             </div>
-          )}
 
-          {/* Staged Accounts Table */}
-          <div className="space-y-2">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setStagedTabFilter("open")}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    stagedTabFilter === "open"
-                      ? "bg-[#163A2C] text-white"
-                      : "bg-[#F3F6F1] text-[#576558] hover:bg-[#E7EFE4]"
-                  }`}
-                >
-                  Open / Live Accounts ({stagedAccounts.filter((a) => a.status === "Open").length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStagedTabFilter("closed")}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    stagedTabFilter === "closed"
-                      ? "bg-[#163A2C] text-white"
-                      : "bg-[#F3F6F1] text-[#576558] hover:bg-[#E7EFE4]"
-                  }`}
-                >
-                  Closed / Settled ({stagedAccounts.filter((a) => a.status === "Closed").length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStagedTabFilter("all")}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    stagedTabFilter === "all"
-                      ? "bg-[#163A2C] text-white"
-                      : "bg-[#F3F6F1] text-[#576558] hover:bg-[#E7EFE4]"
-                  }`}
-                >
-                  All Accounts ({stagedAccounts.length})
-                </button>
+            <div className="bg-white p-3 sm:p-4 rounded-xl border border-[#E3EBE0] shadow-xs">
+              <div className="text-[10.5px] font-bold text-[#829283] uppercase mb-1">
+                Live Outstanding
               </div>
+              <div className="text-xl sm:text-2xl font-bold font-mono text-[#17241B]">
+                ₹{currentMetrics.totalLiveOutstanding.toLocaleString("en-IN")}
+              </div>
+              <div className="text-[11px] text-[#576558] mt-0.5">
+                Sanctioned: ₹{currentMetrics.totalSanctionedAmount.toLocaleString("en-IN")}
+              </div>
+            </div>
 
-              <button
-                type="button"
-                onClick={() => handleOpenAddModal(true)}
-                className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#163A2C] hover:bg-[#102B21] text-white rounded-lg text-xs font-semibold cursor-pointer"
+            <div className="bg-white p-3 sm:p-4 rounded-xl border border-[#E3EBE0] shadow-xs">
+              <div className="text-[10.5px] font-bold text-[#829283] uppercase mb-1">
+                Unsecured / CC EMI
+              </div>
+              <div className="text-xl sm:text-2xl font-bold font-mono text-[#17241B]">
+                ₹{unsecuredMonthlyEmi.toLocaleString("en-IN")}
+              </div>
+              <div className="text-[11px] text-amber-700 mt-0.5 font-medium">
+                High-interest burden
+              </div>
+            </div>
+
+            <div className="bg-white p-3 sm:p-4 rounded-xl border border-[#E3EBE0] shadow-xs">
+              <div className="text-[10.5px] font-bold text-[#829283] uppercase mb-1">
+                Max DPD In Track
+              </div>
+              <div
+                className={`text-xl sm:text-2xl font-bold font-mono ${
+                  hasOverdueRisk ? "text-amber-700" : "text-emerald-700"
+                }`}
               >
-                <Plus size={12} />
-                <span>Add Missing Account</span>
-              </button>
+                {maxDpdAcrossAll} DPD
+              </div>
+              <div className="text-[11px] text-[#576558] mt-0.5">
+                {hasOverdueRisk ? "Adverse DPD flag recorded" : "Clean payment history"}
+              </div>
+            </div>
+          </div>
+
+          {/* Trade Lines Management Table */}
+          <div className="bg-white rounded-xl border border-[#E3EBE0] shadow-xs overflow-hidden">
+            {/* Table Header & Controls */}
+            <div className="p-3.5 sm:p-4 border-b border-[#EEF2EB] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <h2 className="text-sm font-bold text-[#17241B]">Active Trade Lines &amp; Debt</h2>
+
+                {/* Filter Tabs */}
+                <div className="flex items-center bg-[#F4F7F2] p-0.5 rounded-lg text-xs font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setAccountTabFilter("open")}
+                    className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
+                      accountTabFilter === "open"
+                        ? "bg-white text-[#163A2C] shadow-2xs font-bold"
+                        : "text-[#576558] hover:text-[#17241B]"
+                    }`}
+                  >
+                    Open Only ({accounts.filter((a) => a.status === "Open").length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAccountTabFilter("all")}
+                    className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
+                      accountTabFilter === "all"
+                        ? "bg-white text-[#163A2C] shadow-2xs font-bold"
+                        : "text-[#576558] hover:text-[#17241B]"
+                    }`}
+                  >
+                    All ({accounts.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAccountTabFilter("closed")}
+                    className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
+                      accountTabFilter === "closed"
+                        ? "bg-white text-[#163A2C] shadow-2xs font-bold"
+                        : "text-[#576558] hover:text-[#17241B]"
+                    }`}
+                  >
+                    Closed ({accounts.filter((a) => a.status === "Closed").length})
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleOpenAddModal}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#163A2C] hover:bg-[#102B21] text-white text-xs font-bold transition-colors cursor-pointer shadow-xs"
+                >
+                  <Plus size={13} />
+                  <span>Add Trade Line</span>
+                </button>
+              </div>
             </div>
 
-            <div className="border border-[#ECEFE9] rounded-xl overflow-x-auto">
-              <table className="w-full min-w-[700px] border-collapse text-left text-xs">
+            {/* Explanatory banner for Relook Action */}
+            <div className="bg-[#FAFBF9] px-4 py-2 border-b border-[#ECEFE9] text-[11px] text-[#576558] flex items-center gap-2">
+              <span className="font-bold text-[#163A2C]">Relook Action:</span>
+              <span>
+                Toggle <strong>&ldquo;Close with New Loan&rdquo;</strong> on any open trade line to
+                simulate debt consolidation and see real-time FOIR relief.
+              </span>
+            </div>
+
+            {/* Scrollable Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="bg-[#F8FAF6] border-b border-[#ECEFE9] text-[#829283] text-[10px] font-bold tracking-wider uppercase">
-                    <th className="py-2.5 px-3">Page</th>
-                    <th className="py-2.5 px-3">Lender &amp; Product</th>
-                    <th className="py-2.5 px-3">Sanctioned</th>
-                    <th className="py-2.5 px-3">Current Balance</th>
-                    <th className="py-2.5 px-3">Monthly EMI</th>
-                    <th className="py-2.5 px-3">DPD Status</th>
-                    <th className="py-2.5 px-3">Status</th>
-                    <th className="py-2.5 px-3">BT / Closure</th>
+                  <tr className="bg-[#FAFBF9] text-[#829283] font-bold text-[10.5px] tracking-wider uppercase border-b border-[#EEF2EB]">
+                    <th className="py-2.5 px-3.5">Lender / Product</th>
+                    <th className="py-2.5 px-3">Account No</th>
+                    <th className="py-2.5 px-3 text-right">Sanction / Limit</th>
+                    <th className="py-2.5 px-3 text-right">Current Balance</th>
+                    <th className="py-2.5 px-3 text-right">Monthly EMI</th>
+                    <th className="py-2.5 px-3">DPD / Track</th>
+                    <th className="py-2.5 px-3 text-center">Relook Action</th>
                     <th className="py-2.5 px-3 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {displayedStagedAccounts.map((acc) => (
-                    <tr
-                      key={acc.id}
-                      className={`border-b border-[#ECEFE9] last:border-b-0 hover:bg-[#FBFDFB] transition-colors ${
-                        acc.status === "Closed" ? "opacity-75 bg-slate-50/40" : ""
-                      } ${acc.needsReview ? "bg-amber-50/50" : ""}`}
-                    >
-                      <td className="py-2 px-3 text-[11px] font-mono text-[#829283]">
-                        {acc.sourcePage ? (
-                          <span className="bg-[#EBF3E8] text-[#163A2C] font-bold px-1.5 py-0.5 rounded text-[10px]">
-                            Pg {acc.sourcePage}
-                          </span>
-                        ) : (
-                          <span>-</span>
-                        )}
-                      </td>
-                      <td className="py-2 px-3">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-semibold text-[#17241B]">{acc.lender}</span>
-                          {acc.confidence === "high" && (
-                            <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1 rounded">
-                              Extracted
-                            </span>
-                          )}
-                          {acc.isManuallyEdited && (
-                            <span className="text-[9px] bg-blue-100 text-blue-800 font-bold px-1 rounded">
-                              Edited
-                            </span>
-                          )}
-                          {acc.needsReview && (
-                            <span
-                              className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1 rounded cursor-help"
-                              title={acc.reviewReasons.join("; ")}
-                            >
-                              Verify
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-[11px] text-[#829283]">
-                          {acc.accountType} • {acc.accountNumberMasked}
-                        </div>
-                      </td>
-                      <td className="py-2 px-3 text-[#576558]">
-                        ₹{(acc.sanctionAmount || 0).toLocaleString("en-IN")}
-                      </td>
-                      <td className="py-2 px-3 font-semibold text-[#17241B]">
-                        ₹{(acc.currentBalance || 0).toLocaleString("en-IN")}
-                      </td>
-                      <td className="py-2 px-3 text-[#163A2C] font-semibold">
-                        {acc.monthlyEmi !== null && acc.monthlyEmi > 0 ? (
-                          `₹${acc.monthlyEmi.toLocaleString("en-IN")}`
-                        ) : (
-                          <span className="text-gray-400 font-normal">-</span>
-                        )}
-                      </td>
-                      <td className="py-2 px-3">
-                        <div className="flex items-center gap-1">
-                          <span
-                            className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-                              acc.maxDpd === 0
-                                ? "bg-emerald-50 text-emerald-800"
-                                : "bg-amber-100 text-amber-800"
-                            }`}
-                          >
-                            {acc.dpdSummaryString}
-                          </span>
-                          {acc.paymentHistory && acc.paymentHistory.length > 0 && (
-                            <button
-                              type="button"
-                              onClick={() => setInspectHistoryAccount(acc)}
-                              className="p-1 text-gray-400 hover:text-[#163A2C] cursor-pointer"
-                              title="Inspect month-by-month payment history"
-                            >
-                              <Eye size={12} />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-2 px-3">
-                        <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                            acc.status === "Open"
-                              ? "bg-emerald-100 text-emerald-800"
-                              : "bg-gray-100 text-gray-600"
-                          }`}
-                        >
-                          {acc.status}
-                        </span>
-                      </td>
-                      <td className="py-2 px-3">
-                        {acc.status === "Open" ? (
-                          <button
-                            type="button"
-                            onClick={() => toggleClosure(acc.id, true)}
-                            className={`text-[10.5px] font-semibold px-2 py-0.5 rounded border transition-colors cursor-pointer ${
-                              acc.toClose
-                                ? "bg-amber-100 border-amber-300 text-amber-800"
-                                : "bg-white border-[#CAD8C7] text-[#1B4734] hover:bg-[#F2F7F0]"
-                            }`}
-                          >
-                            {acc.toClose ? "✓ Slated to Close" : "+ Plan Closure"}
-                          </button>
-                        ) : (
-                          <span className="text-[10px] text-gray-400">Paid</span>
-                        )}
-                      </td>
-                      <td className="py-2 px-3 text-right">
-                        <div className="inline-flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEditModal(acc, true)}
-                            className="p-1 text-gray-400 hover:text-[#163A2C] hover:bg-gray-100 rounded cursor-pointer"
-                            title="Edit trade line"
-                          >
-                            <Edit3 size={13} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteAccount(acc.id, true)}
-                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer"
-                            title="Delete trade line"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
+                <tbody className="divide-y divide-[#EEF2EB]">
+                  {displayedAccounts.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-[#829283]">
+                        No accounts match the selected filter.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    displayedAccounts.map((acc) => (
+                      <tr
+                        key={acc.id}
+                        className={`hover:bg-[#F9FAF8] transition-colors ${
+                          acc.toClose ? "bg-[#FFFBF0]/60" : ""
+                        }`}
+                      >
+                        <td className="py-2.5 px-3.5">
+                          <div className="font-bold text-[#17241B]">{acc.lender}</div>
+                          <div className="text-[11px] text-[#576558]">{acc.accountType}</div>
+                        </td>
+                        <td className="py-2.5 px-3 font-mono text-[11px] text-[#576558]">
+                          {acc.accountNumberMasked}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono text-[#17241B]">
+                          ₹{(acc.sanctionAmount || 0).toLocaleString("en-IN")}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono text-[#17241B]">
+                          ₹{(acc.currentBalance || 0).toLocaleString("en-IN")}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-[#163A2C]">
+                          ₹{(acc.monthlyEmi || 0).toLocaleString("en-IN")}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                acc.maxDpd > 0
+                                  ? "bg-amber-100 text-amber-800"
+                                  : "bg-emerald-100 text-emerald-800"
+                              }`}
+                            >
+                              {acc.dpdSummaryString}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          {acc.status === "Open" ? (
+                            <button
+                              type="button"
+                              onClick={() => toggleClosure(acc.id)}
+                              className={`px-2.5 py-1 rounded-lg text-[10.5px] font-bold cursor-pointer transition-all ${
+                                acc.toClose
+                                  ? "bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs"
+                                  : "bg-gray-100 text-gray-700 hover:bg-gray-200 border border-transparent"
+                              }`}
+                              title={
+                                acc.toClose
+                                  ? "Slated to close with fresh loan proceeds (Click to unmark)"
+                                  : "Click to mark for closure in debt consolidation relook"
+                              }
+                            >
+                              {acc.toClose ? "✓ Close via Loan" : "Keep Open"}
+                            </button>
+                          ) : (
+                            <span className="text-[10.5px] text-gray-400 font-medium">Closed</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            {acc.paymentHistory && acc.paymentHistory.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setInspectHistoryAccount(acc)}
+                                className="p-1 text-gray-500 hover:text-[#163A2C] hover:bg-[#EBF3E8] rounded transition-colors cursor-pointer"
+                                title="Inspect 36-month DPD history"
+                              >
+                                <Eye size={13} />
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditModal(acc)}
+                              className="p-1 text-gray-500 hover:text-[#163A2C] hover:bg-[#EBF3E8] rounded transition-colors cursor-pointer"
+                              title="Edit trade line"
+                            >
+                              <Edit3 size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteAccount(acc.id)}
+                              className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer"
+                              title="Delete trade line"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
           </div>
 
-          {/* Staged Calculations Preview */}
-          {stagedMetrics && (
-            <div className="bg-[#FAFBF9] p-3 rounded-xl border border-[#D8E7D5] flex flex-wrap items-center justify-between gap-3 text-xs">
-              <div className="flex flex-wrap items-center gap-4">
-                <div>
-                  <span className="text-[#829283] text-[11px]">Live Outstanding: </span>
-                  <span className="font-bold text-[#17241B]">
-                    ₹{stagedMetrics.totalLiveOutstanding.toLocaleString("en-IN")}
-                  </span>
+          {/* ===================== GENERATED CASE RELOOK JUSTIFICATION ===================== */}
+          {caseRemarks && (
+            <div className="bg-white rounded-xl border border-[#C4D9C1] p-4 md:p-5 shadow-xs animate-fade-in">
+              <div className="flex items-center justify-between mb-2.5">
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle size={16} className="text-emerald-700" />
+                  <h3 className="text-xs md:text-sm font-bold text-[#17241B]">
+                    Credit Committee Case Relook Memo (Verified Figures)
+                  </h3>
                 </div>
-                <div>
-                  <span className="text-[#829283] text-[11px]">Current Monthly EMI: </span>
-                  <span className="font-bold text-[#163A2C]">
-                    ₹{stagedMetrics.currentLiveMonthlyEmi.toLocaleString("en-IN")}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-[#829283] text-[11px]">Slated for Closure: </span>
-                  <span className="font-bold text-amber-800">
-                    {stagedMetrics.slatedForClosureCount} account(s) (₹
-                    {stagedMetrics.slatedClosureEmiRelief.toLocaleString("en-IN")} relief)
-                  </span>
-                </div>
+                <button
+                  type="button"
+                  className="px-2.5 py-1 bg-white border border-[#E3EBE0] hover:bg-[#F5F8F4] text-[11px] font-semibold text-[#17241B] rounded-md transition-colors cursor-pointer flex items-center gap-1"
+                  onClick={handleCopyClipboard}
+                >
+                  {copyFeedback ? (
+                    <>
+                      <Check size={12} className="text-emerald-600" />
+                      <span className="text-emerald-700 font-bold">Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={12} />
+                      <span>Copy Memo</span>
+                    </>
+                  )}
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={handleCommitStagedData}
-                className="px-4 py-1.5 bg-[#163A2C] hover:bg-[#102B21] text-white text-xs font-bold rounded-lg cursor-pointer shadow-xs"
-              >
-                Confirm &amp; Apply
-              </button>
+              <pre className="font-mono text-[11px] leading-relaxed whitespace-pre-wrap bg-[#F9FAF6] p-3.5 rounded-lg text-[#183226] border border-[#ECEFE9] overflow-x-auto">
+                {caseRemarks}
+              </pre>
             </div>
           )}
-        </div>
-      )}
-
-      {/* Extracted Customer Summary Pill Bar (when report loaded) */}
-      {(bureauType || panNumber || reportDate) && !isReviewStage && (
-        <div className="bg-[#F8FAF6] p-3 rounded-xl border border-[#E3EBE0] flex flex-wrap items-center justify-between gap-2 text-xs">
-          <div className="flex flex-wrap items-center gap-3">
-            {bureauType && (
-              <span className="bg-[#EBF3E8] text-[#163A2C] font-bold px-2.5 py-0.5 rounded-full border border-[#D5E4D2]">
-                {bureauType}
-              </span>
-            )}
-            {panNumber && (
-              <span className="text-[#576558]">
-                PAN: <span className="font-mono font-bold text-[#17241B]">{panNumber}</span>
-              </span>
-            )}
-            {reportDate && (
-              <span className="text-[#576558]">
-                Report Date: <span className="font-medium text-[#17241B]">{reportDate}</span>
-              </span>
-            )}
-            {controlNumber && (
-              <span className="text-[#829283] hidden sm:inline">
-                Control No: <span className="font-mono">{controlNumber}</span>
-              </span>
-            )}
-          </div>
-          <span className="text-[11px] text-[#829283]">
-            {accounts.length} total trade lines in active engine
-          </span>
-        </div>
-      )}
-
-      {/* Top Score & Summary Banner (Active Relook Engine) */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_2fr] gap-4">
-        {/* Score Dial Box */}
-        <div className="bg-white rounded-xl border border-[#E3EBE0] p-4 md:p-5 flex flex-col items-center justify-center text-center shadow-xs">
-          <div className="text-[10px] font-bold tracking-widest text-[#829283] uppercase mb-1.5">
-            BUREAU SCORE (CIBIL / TRANSUNION)
-          </div>
-          <div className="text-4xl md:text-5xl font-extrabold font-mono text-[#163A2C] leading-none mb-1.5">
-            {score}
-          </div>
-          <div className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${scoreBand.bg} ${scoreBand.color} mb-3`}>
-            {scoreBand.label}
-          </div>
-
-          <div className="w-full px-2">
-            <input
-              type="range"
-              min="300"
-              max="900"
-              value={score}
-              onChange={(e) => setScore(Number(e.target.value))}
-              className="w-full accent-[#163A2C] cursor-pointer"
-            />
-            <div className="flex justify-between text-[10px] text-[#829283] mt-1">
-              <span>300 (Poor)</span>
-              <span>750 (Prime)</span>
-              <span>900 (Excellent)</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Obligation Summary Box */}
-        <div className="bg-white rounded-xl border border-[#E3EBE0] p-4 md:p-5 flex flex-col justify-between shadow-xs">
-          <div>
-            <div className="text-[10px] font-bold tracking-widest text-[#829283] uppercase mb-1">
-              OBLIGATION &amp; BURDEN ANALYSIS
-            </div>
-
-            {/* Editable Applicant Name */}
-            <div className="flex items-center gap-2 mb-3">
-              {isEditingName ? (
-                <div className="flex items-center gap-1.5 w-full max-w-sm">
-                  <input
-                    type="text"
-                    value={tempName}
-                    onChange={(e) => setTempName(e.target.value)}
-                    className="h-8 px-2.5 text-xs sm:text-sm font-bold border border-[#CADBC4] rounded-lg bg-white outline-none focus:border-[#163A2C] flex-1"
-                    placeholder="Enter borrower name"
-                    autoFocus
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (tempName.trim()) setApplicantName(tempName.trim());
-                      setIsEditingName(false);
-                    }}
-                    className="h-8 px-2.5 bg-[#163A2C] text-white rounded-lg text-xs font-semibold hover:bg-[#102B21] transition-colors cursor-pointer"
-                  >
-                    Save
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTempName(applicantName);
-                      setIsEditingName(false);
-                    }}
-                    className="h-8 px-2 text-xs text-gray-500 hover:text-gray-800 cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm md:text-base font-bold text-[#17241B]">
-                    Credit Profile for {applicantName}
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTempName(applicantName);
-                      setIsEditingName(true);
-                    }}
-                    className="p-1 text-gray-400 hover:text-[#163A2C] transition-colors cursor-pointer rounded hover:bg-gray-100"
-                    title="Edit borrower name"
-                  >
-                    <Edit3 size={13} />
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Metrics Breakdown (Requirement 8) */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-3">
-              <div className="bg-[#F9FAF7] p-2.5 rounded-lg border border-[#ECEFE9]">
-                <div className="text-[11px] text-[#829283]">Current Live EMI</div>
-                <div className="text-base font-bold text-[#17241B]">
-                  ₹{currentMetrics.currentLiveMonthlyEmi.toLocaleString("en-IN")}
-                </div>
-                <div className="text-[10px] text-[#829283] mt-0.5">
-                  {currentMetrics.activeAccountsContributingToEmi.length} amortizing trade lines
-                </div>
-              </div>
-              <div className="bg-[#EBF3E8] p-2.5 rounded-lg border border-[#D8E7D5]">
-                <div className="text-[11px] text-[#1B4734]">After BT / Closure</div>
-                <div className="text-base font-bold text-[#153A2A]">
-                  ₹{currentMetrics.postClosureMonthlyEmi.toLocaleString("en-IN")}
-                </div>
-                <div className="text-[10px] text-emerald-800 mt-0.5 font-medium">
-                  -₹{currentMetrics.netMonthlyRelief.toLocaleString("en-IN")}/mo relief
-                </div>
-              </div>
-              <div className="bg-[#F9FAF7] p-2.5 rounded-lg border border-[#ECEFE9]">
-                <div className="text-[11px] text-[#829283]">Total Live Outstanding</div>
-                <div className="text-base font-bold text-[#17241B]">
-                  ₹{(currentMetrics.totalLiveOutstanding / 100000).toFixed(2)}L
-                </div>
-                <div className="text-[10px] text-[#829283] mt-0.5">
-                  ₹{currentMetrics.totalLiveOutstanding.toLocaleString("en-IN")}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            className="w-full h-9 bg-[#163A2C] hover:bg-[#102B21] text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-[0.99]"
-            onClick={handleGenerateJustification}
-            id="generate-relook-btn"
-          >
-            <RefreshCw size={13} />
-            <span>Generate Relook Justification</span>
-          </button>
-        </div>
-      </div>
-
-      {/* ===================== MAIN ACCOUNTS TABLE & CONTROLS ===================== */}
-      <div className="bg-white rounded-xl border border-[#E3EBE0] p-4 md:p-5 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm md:text-base font-bold text-[#17241B]">
-                Trade Lines &amp; Facilities ({accounts.length})
-              </h3>
-              {accounts.filter((a) => a.needsReview).length > 0 && (
-                <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                  {accounts.filter((a) => a.needsReview).length} Needs Verification
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-[#576558] mt-0.5">
-              Toggle &quot;Plan Closure / BT&quot; on open accounts to calculate revised FOIR and relief.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 self-start sm:self-auto">
-            {/* Open / Closed filter tabs */}
-            <div className="flex items-center bg-[#F3F6F1] p-0.5 rounded-lg border border-[#E3EBE0] text-xs">
-              <button
-                type="button"
-                onClick={() => setAccountTabFilter("open")}
-                className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer ${
-                  accountTabFilter === "open"
-                    ? "bg-white text-[#163A2C] shadow-2xs"
-                    : "text-[#576558] hover:text-[#17241B]"
-                }`}
-              >
-                Open ({accounts.filter((a) => a.status === "Open").length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setAccountTabFilter("closed")}
-                className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer ${
-                  accountTabFilter === "closed"
-                    ? "bg-white text-[#163A2C] shadow-2xs"
-                    : "text-[#576558] hover:text-[#17241B]"
-                }`}
-              >
-                Closed ({accounts.filter((a) => a.status === "Closed").length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setAccountTabFilter("all")}
-                className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer ${
-                  accountTabFilter === "all"
-                    ? "bg-white text-[#163A2C] shadow-2xs"
-                    : "text-[#576558] hover:text-[#17241B]"
-                }`}
-              >
-                All ({accounts.length})
-              </button>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => handleOpenAddModal(false)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#163A2C] hover:bg-[#1C4937] text-white rounded-lg text-xs font-semibold transition-all cursor-pointer shadow-xs shrink-0"
-              id="add-tradeline-btn"
-            >
-              <Plus size={13} />
-              <span>Add Trade Line</span>
-            </button>
-          </div>
-        </div>
-
-        <div className="border border-[#ECEFE9] rounded-xl overflow-x-auto">
-          <table className="w-full min-w-[620px] border-collapse text-left text-xs">
-            <thead>
-              <tr className="bg-[#F8FAF6] border-b border-[#ECEFE9] text-[#829283] text-[10px] font-bold tracking-wider uppercase">
-                <th className="py-2.5 px-3">Lender &amp; Product</th>
-                <th className="py-2.5 px-3">Sanctioned</th>
-                <th className="py-2.5 px-3">Current Balance</th>
-                <th className="py-2.5 px-3">Monthly EMI</th>
-                <th className="py-2.5 px-3">DPD Track</th>
-                <th className="py-2.5 px-3">Status</th>
-                <th className="py-2.5 px-3">Closure / BT</th>
-                <th className="py-2.5 px-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {displayedAccounts.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="py-8 text-center text-gray-500 text-xs">
-                    No trade lines present in this view.
-                  </td>
-                </tr>
-              ) : (
-                displayedAccounts.map((acc) => (
-                  <tr
-                    key={acc.id}
-                    className={`border-b border-[#ECEFE9] last:border-b-0 hover:bg-[#FBFDFB] transition-colors ${
-                      acc.status === "Closed" ? "opacity-60 bg-slate-50/50" : ""
-                    } ${acc.needsReview ? "bg-amber-50/40" : ""}`}
-                  >
-                    <td className="py-2.5 px-3">
-                      <div className="flex items-center gap-1.5">
-                        <div className="font-semibold text-[#17241B]">{acc.lender}</div>
-                        {acc.sourcePage && (
-                          <span className="text-[9.5px] bg-[#EBF3E8] text-[#163A2C] font-mono px-1 rounded">
-                            Pg {acc.sourcePage}
-                          </span>
-                        )}
-                        {acc.needsReview && (
-                          <span
-                            className="inline-flex items-center gap-0.5 text-[9.5px] font-bold text-amber-800 bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded cursor-help"
-                            title={acc.reviewReasons.join("; ") || "Extracted field requires verification"}
-                          >
-                            <AlertTriangle size={10} />
-                            <span>Verify</span>
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[11px] text-[#829283]">
-                        {acc.accountType} • {acc.accountNumberMasked}
-                      </div>
-                    </td>
-                    <td className="py-2.5 px-3 text-[#576558]">
-                      ₹{(acc.sanctionAmount || 0).toLocaleString("en-IN")}
-                    </td>
-                    <td className="py-2.5 px-3 font-semibold text-[#17241B]">
-                      ₹{(acc.currentBalance || 0).toLocaleString("en-IN")}
-                    </td>
-                    <td className="py-2.5 px-3 text-[#163A2C] font-semibold">
-                      {acc.monthlyEmi !== null && acc.monthlyEmi > 0 ? (
-                        `₹${acc.monthlyEmi.toLocaleString("en-IN")}`
-                      ) : (
-                        <span className="text-gray-400 font-normal">-</span>
-                      )}
-                    </td>
-                    <td className="py-2.5 px-3">
-                      <div className="flex items-center gap-1">
-                        <span
-                          className={`text-[10.5px] px-1.5 py-0.5 rounded ${
-                            acc.maxDpd === 0
-                              ? "bg-emerald-50 text-emerald-800"
-                              : "bg-amber-100 text-amber-800"
-                          }`}
-                        >
-                          {acc.dpdSummaryString}
-                        </span>
-                        {acc.paymentHistory && acc.paymentHistory.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => setInspectHistoryAccount(acc)}
-                            className="p-1 text-gray-400 hover:text-[#163A2C] cursor-pointer"
-                            title="Inspect month-by-month payment history"
-                          >
-                            <Eye size={12} />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-2.5 px-3">
-                      <span
-                        className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
-                          acc.status === "Open"
-                            ? "bg-[#E3EDE0] text-[#194532]"
-                            : "bg-gray-100 text-gray-600"
-                        }`}
-                      >
-                        {acc.status}
-                      </span>
-                    </td>
-                    <td className="py-2.5 px-3">
-                      {acc.status === "Open" ? (
-                        <button
-                          type="button"
-                          onClick={() => toggleClosure(acc.id, false)}
-                          className={`text-[11px] font-semibold px-2 py-0.5 rounded border transition-colors cursor-pointer ${
-                            acc.toClose
-                              ? "bg-amber-100 border-amber-300 text-amber-800"
-                              : "bg-white border-[#CAD8C7] text-[#1B4734] hover:bg-[#F2F7F0]"
-                          }`}
-                        >
-                          {acc.toClose ? "✓ Slated to Close" : "+ Plan Closure"}
-                        </button>
-                      ) : (
-                        <span className="text-[11px] text-[#829283]">Already Paid</span>
-                      )}
-                    </td>
-                    <td className="py-2.5 px-3 text-right">
-                      <div className="inline-flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEditModal(acc, false)}
-                          className="p-1 text-gray-400 hover:text-[#163A2C] hover:bg-gray-100 rounded transition-colors cursor-pointer"
-                          title="Edit trade line"
-                        >
-                          <Edit3 size={13} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteAccount(acc.id, false)}
-                          className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer"
-                          title="Delete trade line"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* ===================== GENERATED CASE RELOOK JUSTIFICATION (REQUIREMENT 9) ===================== */}
-      {caseRemarks && (
-        <div className="bg-white rounded-xl border border-[#C4D9C1] p-4 md:p-5 shadow-xs animate-fade-in">
-          <div className="flex items-center justify-between mb-2.5">
-            <div className="flex items-center gap-1.5">
-              <CheckCircle size={16} className="text-emerald-700" />
-              <h3 className="text-xs md:text-sm font-bold text-[#17241B]">
-                Credit Committee Case Relook Memo (Verified Figures)
-              </h3>
-            </div>
-            <button
-              type="button"
-              className="px-2.5 py-1 bg-white border border-[#E3EBE0] hover:bg-[#F5F8F4] text-[11px] font-semibold text-[#17241B] rounded-md transition-colors cursor-pointer flex items-center gap-1"
-              onClick={handleCopyClipboard}
-            >
-              {copyFeedback ? (
-                <>
-                  <Check size={12} className="text-emerald-600" />
-                  <span className="text-emerald-700 font-bold">Copied!</span>
-                </>
-              ) : (
-                <>
-                  <Copy size={12} />
-                  <span>Copy Memo</span>
-                </>
-              )}
-            </button>
-          </div>
-          <pre className="font-mono text-[11px] leading-relaxed whitespace-pre-wrap bg-[#F9FAF6] p-3.5 rounded-lg text-[#183226] border border-[#ECEFE9] overflow-x-auto">
-            {caseRemarks}
-          </pre>
         </div>
       )}
 
@@ -1683,50 +1057,25 @@ export const CibilRelookView: React.FC = () => {
                 </span>
               </div>
 
-              <div className="max-h-60 overflow-y-auto border border-gray-100 rounded-xl">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-gray-50 text-[10px] uppercase font-bold text-gray-500 border-b border-gray-100 sticky top-0">
-                    <tr>
-                      <th className="py-2 px-3">Month / Cycle</th>
-                      <th className="py-2 px-3">Reported Code</th>
-                      <th className="py-2 px-3">Asset Classification</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {inspectHistoryAccount.paymentHistory.map((item, idx) => {
-                      const isClear = item.status === "0" || item.status === "000" || item.status === "STD";
-                      const isNotReported = item.status === "XXX" || item.status === "NR";
-                      return (
-                        <tr key={idx} className="border-b border-gray-50 last:border-b-0 hover:bg-gray-50/50">
-                          <td className="py-1.5 px-3 font-mono font-medium">{item.month}</td>
-                          <td className="py-1.5 px-3">
-                            <span
-                              className={`font-mono font-bold px-1.5 py-0.5 rounded text-[10.5px] ${
-                                isClear
-                                  ? "bg-emerald-100 text-emerald-800"
-                                  : isNotReported
-                                  ? "bg-gray-100 text-gray-600"
-                                  : "bg-red-100 text-red-800"
-                              }`}
-                            >
-                              {item.status}
-                            </span>
-                          </td>
-                          <td className="py-1.5 px-3 text-[11px] text-gray-600">
-                            {isClear
-                              ? "Standard (0 DPD)"
-                              : isNotReported
-                              ? "Not Reported by Member (XXX)"
-                              : `${item.status} Days Past Due`}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+              <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 max-h-60 overflow-y-auto p-1">
+                {inspectHistoryAccount.paymentHistory.map((h, idx) => (
+                  <div
+                    key={idx}
+                    className={`p-2 rounded-lg text-center border text-[11px] ${
+                      (h.dpdNumeric ?? 0) === 0
+                        ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                        : "bg-amber-50 border-amber-300 text-amber-900 font-bold"
+                    }`}
+                  >
+                    <div className="text-[10px] text-gray-500 font-semibold">{h.month}</div>
+                    <div className="font-mono mt-0.5">
+                      {h.status || String(h.dpdNumeric ?? 0).padStart(3, "0")}
+                    </div>
+                  </div>
+                ))}
               </div>
 
-              <div className="flex justify-end pt-2">
+              <div className="flex justify-end pt-2 border-t border-gray-100">
                 <button
                   type="button"
                   onClick={() => setInspectHistoryAccount(null)}
@@ -1751,9 +1100,7 @@ export const CibilRelookView: React.FC = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-3 border-b border-gray-100 mb-4">
-              <h3 className="text-base font-bold text-gray-900">
-                {isEditingStagedItem ? "Add Missing Staged Account" : "Add Trade Line / Loan Account"}
-              </h3>
+              <h3 className="text-base font-bold text-gray-900">Add Trade Line / Loan Account</h3>
               <button
                 type="button"
                 onClick={() => setShowAddModal(false)}

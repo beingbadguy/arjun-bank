@@ -2,8 +2,9 @@ import mongoose, { Schema, Document, Model } from "mongoose";
 
 export interface ICompany extends Document {
   name: string;
+  nameNormalized?: string;
   industry?: string;
-  category: "Super Cat A" | "Cat A" | "Cat B" | "Cat C" | "Listed" | "Unlisted";
+  category: string;
   lenderCategories: {
     lender: string;
     category: string;
@@ -24,14 +25,18 @@ const CompanySchema: Schema<ICompany> = new Schema(
       trim: true,
       index: true,
     },
+    nameNormalized: {
+      type: String,
+      index: true,
+    },
     industry: {
       type: String,
-      default: "Information Technology & Services",
+      default: "Corporate Enterprise",
     },
     category: {
       type: String,
-      enum: ["Super Cat A", "Cat A", "Cat B", "Cat C", "Listed", "Unlisted"],
       default: "Cat A",
+      index: true,
     },
     lenderCategories: [
       {
@@ -55,6 +60,10 @@ const CompanySchema: Schema<ICompany> = new Schema(
   }
 );
 
+CompanySchema.index({ name: 1 });
+CompanySchema.index({ nameNormalized: 1 });
+CompanySchema.index({ category: 1 });
+CompanySchema.index({ "lenderCategories.lender": 1 });
 CompanySchema.index({ name: "text" });
 
 const Company: Model<ICompany> =

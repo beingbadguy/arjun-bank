@@ -10,7 +10,7 @@ import {
   Calculator,
   CheckCircle2,
   Files,
-  Upload,
+  Lock,
   ShieldCheck,
   LogOut,
   X,
@@ -19,6 +19,7 @@ import {
   PhoneCall,
   Award,
   GraduationCap,
+  Landmark,
 } from "lucide-react";
 import { useWorkspaceStore, WorkspaceTab } from "@/store/useWorkspaceStore";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -67,6 +68,7 @@ export const Sidebar: React.FC = () => {
     { id: "eligibility", label: "Eligibility check", icon: <CheckCircle2 size={15} /> },
     { id: "pdf-tools", label: "PDF tools", icon: <Files size={15} /> },
     { id: "training", label: "Training modules", icon: <GraduationCap size={15} /> },
+    { id: "bankers-search", label: "Bankers search", icon: <Landmark size={15} /> },
   ];
 
   const managementNavItems: {
@@ -74,9 +76,8 @@ export const Sidebar: React.FC = () => {
     label: string;
     icon: React.ReactNode;
     requiresSuperadmin?: boolean;
-  }[] = [
-    { id: "data-update", label: "Data update", icon: <Upload size={15} /> },
-  ];
+    badge?: string;
+  }[] = [];
 
   const getInitials = (name?: string) => {
     if (!name) return "AG";
@@ -184,41 +185,51 @@ export const Sidebar: React.FC = () => {
           </div>
 
           {/* Management Navigation */}
-          <div>
-            <div className="text-[9.5px] font-bold tracking-widest text-[#829283] uppercase px-2 mb-1.5">
-              MANAGEMENT
+          {managementNavItems.length > 0 && (
+            <div>
+              <div className="text-[9.5px] font-bold tracking-widest text-[#829283] uppercase px-2 mb-1.5">
+                MANAGEMENT
+              </div>
+              <ul className="flex flex-col gap-0.5 list-none p-0 m-0">
+                {managementNavItems
+                  .filter((item) => !item.requiresSuperadmin || isSuperadmin)
+                  .map((item) => {
+                    const isActive = activeTab === item.id;
+                    return (
+                      <li key={item.id}>
+                        <button
+                          type="button"
+                          className={`w-full flex items-center justify-between py-1.5 px-2 rounded-md text-[12px] font-medium transition-all cursor-pointer ${
+                            isActive
+                              ? "bg-[#E3EDE0] text-[#143729] font-semibold"
+                              : "text-[#576558] hover:bg-[#EEF4EB] hover:text-[#17241B]"
+                          }`}
+                          onClick={() => handleSelectTab(item.id)}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className={isActive ? "text-[#163A2C]" : "text-[#7B8B7C]"}>
+                              {item.icon}
+                            </span>
+                            <span>{item.label}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            {item.badge && !isActive && (
+                              <span className="text-[9px] font-semibold text-[#829283] bg-[#EAF2E8] px-1 py-0.5 rounded flex items-center gap-0.5">
+                                <Lock size={9} />
+                                <span>{item.badge}</span>
+                              </span>
+                            )}
+                            {isActive && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#257853]" />
+                            )}
+                          </div>
+                        </button>
+                      </li>
+                    );
+                  })}
+              </ul>
             </div>
-            <ul className="flex flex-col gap-0.5 list-none p-0 m-0">
-              {managementNavItems
-                .filter((item) => !item.requiresSuperadmin || isSuperadmin)
-                .map((item) => {
-                  const isActive = activeTab === item.id;
-                  return (
-                    <li key={item.id}>
-                      <button
-                        type="button"
-                        className={`w-full flex items-center justify-between py-1.5 px-2 rounded-md text-[12px] font-medium transition-all cursor-pointer ${
-                          isActive
-                            ? "bg-[#E3EDE0] text-[#143729] font-semibold"
-                            : "text-[#576558] hover:bg-[#EEF4EB] hover:text-[#17241B]"
-                        }`}
-                        onClick={() => handleSelectTab(item.id)}
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className={isActive ? "text-[#163A2C]" : "text-[#7B8B7C]"}>
-                            {item.icon}
-                          </span>
-                          <span>{item.label}</span>
-                        </div>
-                        {isActive && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#257853]" />
-                        )}
-                      </button>
-                    </li>
-                  );
-                })}
-            </ul>
-          </div>
+          )}
 
           {/* Personal Loan Incentive - For all users */}
           <div>

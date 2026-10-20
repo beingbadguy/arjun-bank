@@ -48,10 +48,15 @@ export const DataUpdateView: React.FC = () => {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (useWorkspaceStore.getState().activeTab !== "data-update") return;
+    const isDataPath = window.location.pathname === "/data";
+    if (!isDataPath && useWorkspaceStore.getState().activeTab !== "data-update") return;
     try {
       const url = new URL(window.location.href);
-      url.searchParams.set("tab", "data-update");
+      if (isDataPath) {
+        url.searchParams.delete("tab");
+      } else {
+        url.searchParams.set("tab", "data-update");
+      }
       url.searchParams.set("type", activeMaster);
       window.history.replaceState(null, "", url.toString());
     } catch {}
@@ -68,6 +73,8 @@ export const DataUpdateView: React.FC = () => {
   }, []);
   const [isSyncingTsv, setIsSyncingTsv] = useState<boolean>(false);
   const [customTsvUrl, setCustomTsvUrl] = useState<string>(TSV_SOURCE_URL);
+  const [isSyncingCompanyTsv, setIsSyncingCompanyTsv] = useState<boolean>(false);
+  const [customCompanyTsvUrl, setCustomCompanyTsvUrl] = useState<string>("company_master.tsv");
 
   // New Company Form State
   const [showAddCompany, setShowAddCompany] = useState<boolean>(false);
@@ -124,6 +131,32 @@ export const DataUpdateView: React.FC = () => {
       setErrorMessage(e.message || "Network error syncing TSV master");
     } finally {
       setIsSyncingTsv(false);
+    }
+  };
+
+  const handleSyncCompanyTsv = async () => {
+    setIsSyncingCompanyTsv(true);
+    setStatusMessage("");
+    setErrorMessage("");
+    try {
+      const res = await fetch("/api/admin/sync-companies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: customCompanyTsvUrl }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setStatusMessage(
+          `Extracted ${data.totalRows?.toLocaleString() || "762,389"} rows and synchronized ${data.totalCompanies?.toLocaleString() || "343,169"} companies into MongoDB in ${(data.durationMs / 1000).toFixed(1)}s!`
+        );
+        refreshCounts();
+      } else {
+        setErrorMessage(data.error || "Failed to sync company master TSV");
+      }
+    } catch (e: any) {
+      setErrorMessage(e.message || "Network error syncing company TSV");
+    } finally {
+      setIsSyncingCompanyTsv(false);
     }
   };
 
@@ -561,6 +594,37 @@ export const DataUpdateView: React.FC = () => {
               </div>
             </form>
           )}
+
+          {/* Company TSV Stream Box */}
+          <div className="bg-[#FAFBF9] border border-[#D8E6D5] rounded-xl p-4 mb-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Database size={15} className="text-[#163A2C]" />
+              <h4 className="text-xs font-bold text-[#17241B]">
+                Master Company TSV Data Stream (762k+ Category Mappings)
+              </h4>
+            </div>
+            <p className="text-[11.5px] text-[#576558]">
+              Automated multi-lender ingestion stream from <span className="font-mono text-[#163A2C]">company.tsv</span>. Groups 762k+ rows into 343k+ unique employer documents in MongoDB.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2.5">
+              <input
+                type="text"
+                className="flex-1 h-9 px-3 border border-[#E3EBE0] rounded-lg bg-white text-xs font-mono text-[#17241B] outline-none focus:border-[#163A2C]"
+                value={customCompanyTsvUrl}
+                onChange={(e) => setCustomCompanyTsvUrl(e.target.value)}
+                placeholder="company_master.tsv"
+              />
+              <button
+                type="button"
+                className="h-9 px-4 bg-[#163A2C] hover:bg-[#102B21] text-white text-xs font-semibold rounded-lg inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-[0.99] shrink-0"
+                onClick={handleSyncCompanyTsv}
+                disabled={isSyncingCompanyTsv}
+              >
+                <RefreshCw size={13} className={isSyncingCompanyTsv ? "animate-spin" : ""} />
+                <span>{isSyncingCompanyTsv ? "Ingesting 762k Rows..." : "Sync Company TSV"}</span>
+              </button>
+            </div>
+          </div>
 
           {/* Drag & Drop Import Box */}
           <div className="bg-[#F9FAF6] border-2 border-dashed border-[#C8DAC5] rounded-xl p-6 text-center cursor-pointer hover:border-[#163A2C]/40 transition-colors">

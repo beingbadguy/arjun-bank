@@ -17,6 +17,7 @@ import { DataUpdateView } from "@/components/views/DataUpdateView";
 import { AdminAccessView } from "@/components/views/AdminAccessView";
 import { CasesVaultView } from "@/components/views/CasesVaultView";
 import { TrainingView } from "@/components/views/TrainingView";
+import { BankersSearchView } from "@/components/views/BankersSearchView";
 import { SupportDeskModal } from "@/components/modals/SupportDeskModal";
 import { CallingScriptModal } from "@/components/modals/CallingScriptModal";
 import { BenefitsModal } from "@/components/modals/BenefitsModal";
@@ -34,6 +35,10 @@ export default function Home() {
       }
       if (params.get("tab") === "admin-access") {
         window.location.replace("/admin");
+        return;
+      }
+      if (params.get("tab") === "data-update") {
+        window.location.replace("/data");
         return;
       }
     }
@@ -75,7 +80,10 @@ export default function Home() {
       case "pdf-tools":
         return <PdfToolsView />;
       case "data-update":
-        return <DataUpdateView />;
+        if (typeof window !== "undefined") {
+          window.location.replace("/data");
+        }
+        return <OverviewView />;
       case "admin-access":
         if (typeof window !== "undefined") {
           window.location.replace("/admin");
@@ -88,6 +96,8 @@ export default function Home() {
         return <OverviewView />;
       case "training":
         return <TrainingView />;
+      case "bankers-search":
+        return <BankersSearchView />;
       default:
         return <OverviewView />;
     }

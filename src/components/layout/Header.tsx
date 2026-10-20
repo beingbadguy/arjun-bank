@@ -18,6 +18,7 @@ const tabTitleMap: Record<WorkspaceTab, string> = {
   "admin-access": "Admin access",
   "cases-vault": "Cases Vault (Locked)",
   training: "Training modules",
+  "bankers-search": "Bankers search",
 };
 
 export const Header: React.FC = () => {
