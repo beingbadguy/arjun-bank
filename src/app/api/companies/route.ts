@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import Company from "@/lib/models/Company";
-import { extractTokenFromRequest, verifyToken } from "@/lib/auth";
+import { extractTokenFromRequest, verifyToken, requireAdminAuth } from "@/lib/auth";
 
 export async function GET(request: Request) {
   try {
@@ -69,9 +69,9 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const token = extractTokenFromRequest(request);
-    if (!token || !verifyToken(token)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = requireAdminAuth(request);
+    if (!auth.authorized) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
     const body = await request.json();
@@ -86,18 +86,142 @@ export async function POST(request: Request) {
       });
     }
 
-    if (!body.name) {
-      return NextResponse.json({ error: "Company name is required" }, { status: 400 });
+    if (!body.name || !body.name.trim()) {
+      return NextResponse.json({ error: "Company legal name is required" }, { status: 400 });
     }
 
-    const newCompany = await Company.create(body);
+    const companyData = {
+      ...body,
+      name: body.name.trim(),
+      nameNormalized: (body.name || "").trim().toUpperCase(),
+      category: body.category || "Cat A",
+      industry: body.industry || "Corporate Enterprise",
+      minSalary: typeof body.minSalary === "number" ? body.minSalary : 25000,
+      remarks: body.remarks || "",
+      lenderCategories: Array.isArray(body.lenderCategories) ? body.lenderCategories : [],
+    };
+
+    const newCompany = await Company.create(companyData);
     return NextResponse.json({
       success: true,
+      message: `Company "${newCompany.name}" added successfully`,
       company: newCompany,
     });
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || "Failed to save company" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(request: Request) {
+  try {
+    const auth = requireAdminAuth(request);
+    if (!auth.authorized) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
+    const body = await request.json();
+    const id = body._id || body.id;
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Company ID is required for update" },
+        { status: 400 }
+      );
+    }
+
+    await connectToDatabase();
+    const company = await Company.findById(id);
+
+    if (!company) {
+      return NextResponse.json({ error: "Company not found" }, { status: 404 });
+    }
+
+    if (body.name && body.name.trim()) {
+      company.name = body.name.trim();
+      company.nameNormalized = body.name.trim().toUpperCase();
+    }
+
+    if (body.industry !== undefined) {
+      company.industry = body.industry.trim() || "Corporate Enterprise";
+    }
+
+    if (body.category !== undefined) {
+      company.category = body.category.trim();
+    }
+
+    if (body.minSalary !== undefined) {
+      company.minSalary = Number(body.minSalary) || 0;
+    }
+
+    if (body.remarks !== undefined) {
+      company.remarks = body.remarks;
+    }
+
+    if (Array.isArray(body.lenderCategories)) {
+      company.lenderCategories = body.lenderCategories;
+    }
+
+    await company.save();
+
+    return NextResponse.json({
+      success: true,
+      message: `Company "${company.name}" updated successfully`,
+      company,
+    });
+  } catch (error: any) {
+    console.error("API /api/companies PUT error:", error);
+    return NextResponse.json(
+      { error: error.message || "Failed to update company" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const auth = requireAdminAuth(request);
+    if (!auth.authorized) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
+    const { searchParams } = new URL(request.url);
+    let id = searchParams.get("id");
+
+    if (!id) {
+      try {
+        const body = await request.json();
+        id = body._id || body.id;
+      } catch {
+        // Body was empty or not JSON
+      }
+    }
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Company ID is required for deletion" },
+        { status: 400 }
+      );
+    }
+
+    await connectToDatabase();
+    const deleted = await Company.findByIdAndDelete(id);
+
+    if (!deleted) {
+      return NextResponse.json({ error: "Company not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `Company "${deleted.name}" deleted successfully.`,
+      deletedId: id,
+    });
+  } catch (error: any) {
+    console.error("API /api/companies DELETE error:", error);
+    return NextResponse.json(
+      { error: error.message || "Failed to delete company" },
       { status: 500 }
     );
   }

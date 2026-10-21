@@ -62,7 +62,7 @@ export function requireAdminAuth(request: Request): {
     return {
       authorized: false,
       status: 401,
-      error: "Authentication required. Please log in with an Admin / Superadmin account.",
+      error: "Authentication required. Please log in with a Superadmin account.",
     };
   }
 
@@ -75,11 +75,11 @@ export function requireAdminAuth(request: Request): {
     };
   }
 
-  if (payload.role !== "superadmin" && (payload.role as string) !== "admin") {
+  if (payload.role !== "superadmin") {
     return {
       authorized: false,
       status: 403,
-      error: "Access denied. Only Superadmin / Admin accounts can create, update, or delete banker records.",
+      error: "Access denied. Only Superadmin can create, update, or delete records.",
     };
   }
 

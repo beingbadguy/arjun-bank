@@ -55,6 +55,10 @@ export const AdminAccessView: React.FC = () => {
   const [resetModalUser, setResetModalUser] = useState<ManagedUser | null>(null);
   const [resetNewPassword, setResetNewPassword] = useState<string>("");
 
+  // Delete User Modal
+  const [deletingUser, setDeletingUser] = useState<ManagedUser | null>(null);
+  const [isDeletingUser, setIsDeletingUser] = useState<boolean>(false);
+
   const isSuperadmin = currentUser?.role === "superadmin";
   const isAdminPath = typeof window !== "undefined" && window.location.pathname === "/admin";
   const hasAccess = isSuperadmin || isAdminPath;
@@ -163,24 +167,25 @@ export const AdminAccessView: React.FC = () => {
     }
   };
 
-  const handleDeleteUser = async (user: ManagedUser) => {
-    if (!confirm(`Are you sure you want to delete user ${user.name} (${user.email})?`)) {
-      return;
-    }
-
+  const confirmDeleteUser = async () => {
+    if (!deletingUser) return;
+    setIsDeletingUser(true);
     try {
-      const res = await fetch(`/api/admin/users/${user._id}`, {
+      const res = await fetch(`/api/admin/users/${deletingUser._id}`, {
         method: "DELETE",
       });
       const data = await res.json();
       if (res.ok) {
-        setSuccessMessage(data.message || "User deleted");
+        setSuccessMessage(data.message || `User ${deletingUser.name} deleted successfully.`);
         fetchUsers();
       } else {
         setErrorMessage(data.error || "Failed to delete user");
       }
     } catch (e: any) {
       setErrorMessage(e.message);
+    } finally {
+      setIsDeletingUser(false);
+      setDeletingUser(null);
     }
   };
 
@@ -398,7 +403,7 @@ export const AdminAccessView: React.FC = () => {
                           {!isCurrent && (
                             <button
                               type="button"
-                              onClick={() => handleDeleteUser(u)}
+                              onClick={() => setDeletingUser(u)}
                               className="p-1 rounded text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
                               title="Delete user"
                             >
@@ -580,6 +585,68 @@ export const AdminAccessView: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* DELETE USER CONFIRMATION MODAL */}
+      {deletingUser && mounted && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] w-screen h-screen min-h-dvh bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in"
+          onClick={() => setDeletingUser(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="bg-white rounded-2xl border border-[#F8D7DA] shadow-2xl w-full max-w-md p-6 space-y-4 animate-scale-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3.5">
+              <div className="w-11 h-11 rounded-xl bg-[#FDF2F2] text-[#991B1B] flex items-center justify-center shrink-0 border border-[#FECACA]">
+                <Trash2 size={22} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-bold text-[#17241B]">
+                  Delete User Account?
+                </h3>
+                <p className="text-xs text-[#576558] mt-1.5 leading-relaxed">
+                  Are you sure you want to permanently delete user{" "}
+                  <strong className="text-[#17241B]">{deletingUser.name}</strong> (
+                  <span className="font-mono text-[#163A2C]">{deletingUser.email}</span>
+                  )? This action cannot be undone.
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-[#ECEFE9] flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setDeletingUser(null)}
+                disabled={isDeletingUser}
+                className="h-9 px-4 text-xs font-semibold border border-[#DCE4D9] hover:bg-[#F5F8F4] text-[#576558] rounded-xl transition-colors cursor-pointer"
+              >
+                No, Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteUser}
+                disabled={isDeletingUser}
+                className="h-9 px-4 bg-[#991B1B] hover:bg-[#7F1D1D] text-white text-xs font-semibold rounded-xl inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
+              >
+                {isDeletingUser ? (
+                  <>
+                    <RefreshCw size={13} className="animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={13} />
+                    <span>Yes, Delete User</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>,
         document.body

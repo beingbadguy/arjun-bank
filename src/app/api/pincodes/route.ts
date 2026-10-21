@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import PinCode from "@/lib/models/PinCode";
-import { extractTokenFromRequest, verifyToken } from "@/lib/auth";
+import { extractTokenFromRequest, verifyToken, requireAdminAuth } from "@/lib/auth";
 
 export async function GET(request: Request) {
   try {
@@ -86,9 +86,9 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const token = extractTokenFromRequest(request);
-    if (!token || !verifyToken(token)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = requireAdminAuth(request);
+    if (!auth.authorized) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
     const body = await request.json();

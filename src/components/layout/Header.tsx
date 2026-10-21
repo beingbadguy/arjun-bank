@@ -79,11 +79,10 @@ export const Header: React.FC = () => {
         <button
           type="button"
           onClick={handleToggleAudio}
-          className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold transition-all cursor-pointer shadow-2xs hover:shadow-xs active:scale-[0.98] ${
-            audioAssistEnabled
+          className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold transition-all cursor-pointer shadow-2xs hover:shadow-xs active:scale-[0.98] ${audioAssistEnabled
               ? "text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300"
               : "text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-300"
-          }`}
+            }`}
           title={
             audioAssistEnabled
               ? "Audio Assist is ON (Click to Mute)"
@@ -95,9 +94,8 @@ export const Header: React.FC = () => {
             <>
               <Volume2
                 size={13}
-                className={`text-emerald-600 shrink-0 stroke-[2.3] ${
-                  isSpeaking ? "animate-pulse" : ""
-                }`}
+                className={`text-emerald-600 shrink-0 stroke-[2.3] ${isSpeaking ? "animate-pulse" : ""
+                  }`}
               />
               <span className="hidden sm:inline">Audio ON</span>
               <span className="sm:hidden">Audio</span>
@@ -139,17 +137,14 @@ export const Header: React.FC = () => {
           <span className="sm:hidden">Contact</span>
         </button>
 
-        <div className="hidden lg:flex items-center gap-1.5 text-[10.5px] font-medium text-[#576558] bg-[#F2F5EF] px-2 py-0.5 rounded-full border border-[#ECEFE9]">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#2F855A] shadow-[0_0_0_2px_rgba(47,133,90,0.2)] animate-pulse shrink-0" />
-          <span>Workspace ready</span>
-        </div>
 
-        <div
+
+        {/* <div
           className="w-7 h-7 rounded-full bg-[#E6EFE4] text-[#163A2C] text-[10.5px] font-bold flex items-center justify-center border border-[#E4ECE1] shadow-2xs shrink-0 cursor-default"
           title={user?.name || "User Profile"}
         >
           {getInitials(user?.name)}
-        </div>
+        </div> */}
       </div>
     </header>
   );

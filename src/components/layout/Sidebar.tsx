@@ -20,6 +20,10 @@ import {
   Award,
   GraduationCap,
   Landmark,
+  Globe,
+  ExternalLink,
+  Sparkles,
+  Code2,
 } from "lucide-react";
 import { useWorkspaceStore, WorkspaceTab } from "@/store/useWorkspaceStore";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -39,6 +43,7 @@ export const Sidebar: React.FC = () => {
   const [mounted, setMounted] = useState<boolean>(false);
   const [showLogoutModal, setShowLogoutModal] = useState<boolean>(false);
   const [isLoggingOut, setIsLoggingOut] = useState<boolean>(false);
+  const [showDeveloperModal, setShowDeveloperModal] = useState<boolean>(false);
 
   useEffect(() => {
     setMounted(true);
@@ -53,6 +58,22 @@ export const Sidebar: React.FC = () => {
     };
   }, []);
 
+  // Escape key listener for open modals
+  useEffect(() => {
+    if (showDeveloperModal || showLogoutModal) {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === "Escape") {
+          setShowDeveloperModal(false);
+          setShowLogoutModal(false);
+        }
+      };
+      window.addEventListener("keydown", handleKeyDown);
+      return () => {
+        window.removeEventListener("keydown", handleKeyDown);
+      };
+    }
+  }, [showDeveloperModal, showLogoutModal]);
+
   const isSuperadmin = user?.role === "superadmin";
 
   const workspaceNavItems: {
@@ -60,16 +81,16 @@ export const Sidebar: React.FC = () => {
     label: string;
     icon: React.ReactNode;
   }[] = [
-    { id: "overview", label: "Overview", icon: <LayoutGrid size={15} /> },
-    { id: "company-search", label: "Company search", icon: <Building2 size={15} /> },
-    { id: "pin-search", label: "PIN code search", icon: <MapPin size={15} /> },
-    { id: "cibil-relook", label: "CIBIL & case relook", icon: <FileText size={15} /> },
-    { id: "emi-calc", label: "EMI calculator", icon: <Calculator size={15} /> },
-    { id: "eligibility", label: "Eligibility check", icon: <CheckCircle2 size={15} /> },
-    { id: "pdf-tools", label: "PDF tools", icon: <Files size={15} /> },
-    { id: "training", label: "Training modules", icon: <GraduationCap size={15} /> },
-    { id: "bankers-search", label: "Bankers search", icon: <Landmark size={15} /> },
-  ];
+      { id: "overview", label: "Overview", icon: <LayoutGrid size={15} /> },
+      { id: "company-search", label: "Company search", icon: <Building2 size={15} /> },
+      { id: "pin-search", label: "PIN code search", icon: <MapPin size={15} /> },
+      { id: "cibil-relook", label: "CIBIL & case relook", icon: <FileText size={15} /> },
+      { id: "emi-calc", label: "EMI calculator", icon: <Calculator size={15} /> },
+      { id: "eligibility", label: "Eligibility check", icon: <CheckCircle2 size={15} /> },
+      { id: "pdf-tools", label: "PDF tools", icon: <Files size={15} /> },
+      { id: "training", label: "Training modules", icon: <GraduationCap size={15} /> },
+      { id: "bankers-search", label: "Bankers search", icon: <Landmark size={15} /> },
+    ];
 
   const managementNavItems: {
     id: WorkspaceTab;
@@ -114,11 +135,10 @@ export const Sidebar: React.FC = () => {
       )}
 
       <aside
-        className={`w-64 max-w-[85vw] md:w-56 shrink-0 bg-[#F8F9F5] border-r border-[#E4ECE1] flex flex-col p-3.5 h-full overflow-hidden select-none transition-transform duration-200 ${
-          mobileMenuOpen
+        className={`w-64 max-w-[85vw] md:w-56 shrink-0 bg-[#F8F9F5] border-r border-[#E4ECE1] flex flex-col p-3.5 h-full overflow-hidden select-none transition-transform duration-200 ${mobileMenuOpen
             ? "fixed inset-y-0 left-0 z-50 shadow-2xl translate-x-0"
             : "hidden md:flex relative z-30"
-        }`}
+          }`}
       >
         {/* Brand Header - Pinned at top */}
         <div className="shrink-0 flex items-center justify-between pb-3 border-b border-[#ECEFE9] mb-3">
@@ -161,11 +181,10 @@ export const Sidebar: React.FC = () => {
                   <li key={item.id}>
                     <button
                       type="button"
-                      className={`w-full flex items-center justify-between py-1.5 px-2 rounded-md text-[12px] font-medium transition-all cursor-pointer ${
-                        isActive
+                      className={`w-full flex items-center justify-between py-1.5 px-2 rounded-md text-[12px] font-medium transition-all cursor-pointer ${isActive
                           ? "bg-[#E3EDE0] text-[#143729] font-semibold"
                           : "text-[#576558] hover:bg-[#EEF4EB] hover:text-[#17241B]"
-                      }`}
+                        }`}
                       onClick={() => handleSelectTab(item.id)}
                     >
                       <div className="flex items-center gap-2">
@@ -199,11 +218,10 @@ export const Sidebar: React.FC = () => {
                       <li key={item.id}>
                         <button
                           type="button"
-                          className={`w-full flex items-center justify-between py-1.5 px-2 rounded-md text-[12px] font-medium transition-all cursor-pointer ${
-                            isActive
+                          className={`w-full flex items-center justify-between py-1.5 px-2 rounded-md text-[12px] font-medium transition-all cursor-pointer ${isActive
                               ? "bg-[#E3EDE0] text-[#143729] font-semibold"
                               : "text-[#576558] hover:bg-[#EEF4EB] hover:text-[#17241B]"
-                          }`}
+                            }`}
                           onClick={() => handleSelectTab(item.id)}
                         >
                           <div className="flex items-center gap-2">
@@ -240,11 +258,10 @@ export const Sidebar: React.FC = () => {
               <li>
                 <button
                   type="button"
-                  className={`w-full flex items-center justify-between py-1.5 px-2 rounded-md text-[12px] font-medium transition-all cursor-pointer ${
-                    benefitsModalOpen
+                  className={`w-full flex items-center justify-between py-1.5 px-2 rounded-md text-[12px] font-medium transition-all cursor-pointer ${benefitsModalOpen
                       ? "bg-[#E3EDE0] text-[#143729] font-semibold"
                       : "text-[#576558] hover:bg-[#EEF4EB] hover:text-[#17241B]"
-                  }`}
+                    }`}
                   onClick={() => {
                     setBenefitsModalOpen(true);
                     setMobileMenuOpen(false);
@@ -319,17 +336,25 @@ export const Sidebar: React.FC = () => {
 
         {/* Sidebar Footer - Pinned at bottom */}
         <div className="shrink-0 mt-auto flex flex-col gap-2 pt-2 pb-6 md:pb-0 border-t border-[#ECEFE9]">
-          <div className="flex gap-2 p-2 bg-[#F2F5EF] border border-[#ECEFE9] rounded-lg text-[10px] leading-snug text-[#576558]">
-            <ShieldCheck size={14} className="text-[#2A7B51] shrink-0 mt-0.5" />
-            <div>
-              <div className="font-semibold text-[#17241B]">
-                A little more peace of mind.
+          <button
+            type="button"
+            onClick={() => setShowDeveloperModal(true)}
+            className="w-full flex items-start gap-2 p-2 bg-[#F2F5EF] border border-[#ECEFE9] rounded-lg text-[10px] leading-snug text-[#576558] text-left transition-all  group shadow-2xs active:scale-[0.99]"
+            title="Click to view developer & credits"
+          >
+            <ShieldCheck size={14} className="text-[#2A7B51] shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
+            <div className="flex-1 min-w-0">
+              <div className="font-semibold text-[#17241B] flex items-center justify-between">
+                <span>A little more peace of mind.</span>
+                {/* <span className="text-[9px] text-[#2A7B51] font-medium opacity-70 group-hover:opacity-100 transition-opacity">
+                  About ↗
+                </span> */}
               </div>
               <div className="text-[9.5px] text-[#6A7B6C] mt-0.5">
                 Client reports &amp; PDF tools processed locally.
               </div>
             </div>
-          </div>
+          </button>
 
           <div className="flex items-center gap-2 py-1 px-1">
             <div className="w-7 h-7 rounded-full bg-[#E2ECE0] text-[#163A2C] flex items-center justify-center text-[10.5px] font-bold shrink-0">
@@ -343,8 +368,8 @@ export const Sidebar: React.FC = () => {
                 {user?.role === "superadmin"
                   ? "Superadmin"
                   : user?.role === "analyst"
-                  ? "Credit Analyst"
-                  : "Loan Operator"}
+                    ? "Credit Analyst"
+                    : "Loan Operator"}
               </div>
             </div>
             <button
@@ -427,6 +452,133 @@ export const Sidebar: React.FC = () => {
               >
                 <span>{isLoggingOut ? "Signing out..." : "Yes, sign out"}</span>
               </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Developer Credits Modal - Teleported directly to document.body */}
+      {showDeveloperModal && mounted && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] w-screen h-screen min-h-dvh flex items-start sm:items-center justify-center p-4 py-8 bg-black/60 backdrop-blur-xs overflow-y-auto animate-fade-in"
+          onClick={() => setShowDeveloperModal(false)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="bg-white rounded-2xl border border-[#DCE4D9] p-6 max-w-md w-full shadow-2xl my-auto animate-scale-up space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#163A2C] to-[#2A7B51] text-white flex items-center justify-center font-bold text-lg shadow-md border border-[#20573e]">
+                  AK
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="text-base font-bold text-[#17241B]">
+                      Aman Kumar
+                    </h3>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#EBF4E9] text-[#163A2C] border border-[#CCE0C6]">
+                      <Sparkles size={11} className="text-[#196D29]" />
+                      Creator &amp; Architect
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#576558] mt-0.5">
+                    Full-Stack Engineer &amp; Product Developer
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="p-1.5 rounded-lg text-[#829283] hover:text-[#17241B] hover:bg-[#F1F5EE] transition-colors cursor-pointer"
+                onClick={() => setShowDeveloperModal(false)}
+                title="Close modal"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Description */}
+            <div className="bg-[#FAFBF9] border border-[#ECEFE9] rounded-xl p-3.5 space-y-2 text-xs text-[#4F6352] leading-relaxed">
+              <p>
+                This loan operations workspace and financial data engine was engineered and built by{" "}
+                <strong className="text-[#17241B] font-semibold">Aman Kumar</strong>.
+              </p>
+              <div className="grid grid-cols-2 gap-2 pt-1 text-[11px]">
+                <div className="flex items-center gap-1.5 text-[#163A2C]">
+                  <CheckCircle2 size={13} className="text-[#257853] shrink-0" />
+                  <span>343k+ Company Master</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-[#163A2C]">
+                  <CheckCircle2 size={13} className="text-[#257853] shrink-0" />
+                  <span>30k+ PIN Serviceability</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-[#163A2C]">
+                  <CheckCircle2 size={13} className="text-[#257853] shrink-0" />
+                  <span>Private Local PDF Engine</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-[#163A2C]">
+                  <CheckCircle2 size={13} className="text-[#257853] shrink-0" />
+                  <span>Role Vault &amp; CIBIL Relook</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Portfolio Link Showcase Card */}
+            <a
+              href="https://amancodes.vercel.app/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group block p-3.5 bg-gradient-to-br from-[#F5F8F3] to-[#EAF2E7] hover:from-[#EAF2E7] hover:to-[#DFECE0] border border-[#CFE1CD] hover:border-[#B7D4B4] rounded-xl transition-all shadow-2xs cursor-pointer text-left"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-white text-[#163A2C] border border-[#CCE0C6] flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform">
+                    <Globe size={18} className="text-[#163A2C]" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-[#17241B] flex items-center gap-1.5">
+                      <span>Explore Aman&apos;s Portfolio</span>
+                      <ExternalLink size={12} className="text-[#163A2C] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                    </div>
+                    <div className="text-[11px] font-mono text-[#257853] font-medium mt-0.5">
+                      https://amancodes.vercel.app/
+                    </div>
+                  </div>
+                </div>
+                <span className="text-xs font-semibold text-[#163A2C] px-2.5 py-1 bg-white border border-[#CCE0C6] rounded-lg shadow-2xs group-hover:bg-[#163A2C] group-hover:text-white transition-all">
+                  Visit ↗
+                </span>
+              </div>
+            </a>
+
+            {/* Privacy note */}
+            <div className="flex items-center gap-2 px-1 text-[10.5px] text-[#829283]">
+              <ShieldCheck size={14} className="text-[#2A7B51] shrink-0" />
+              <span>Zero-knowledge client report parsing &amp; secure local execution.</span>
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div className="pt-2 border-t border-[#ECEFE9] flex items-center justify-end gap-2">
+              <button
+                type="button"
+                className="h-8 px-3.5 border border-[#DCE4D9] hover:bg-[#F5F8F4] text-[#576558] hover:text-[#17241B] text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                onClick={() => setShowDeveloperModal(false)}
+              >
+                Close
+              </button>
+              <a
+                href="https://amancodes.vercel.app/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="h-8 px-4 bg-[#163A2C] hover:bg-[#102B21] text-white text-xs font-semibold rounded-lg inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
+              >
+                <span className="text-white">Open Portfolio</span>
+                <ExternalLink className="text-white" size={12} />
+              </a>
             </div>
           </div>
         </div>,

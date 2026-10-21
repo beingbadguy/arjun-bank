@@ -160,7 +160,7 @@ const INITIAL_FALLBACK_DEMO_BANKERS: BankerContact[] = [
 export const BankersSearchView: React.FC = () => {
   const { setActiveTab } = useWorkspaceStore();
   const { user, token } = useAuthStore();
-  const isAdmin = user?.role === "superadmin" || (user?.role as string) === "admin";
+  const isSuperadmin = user?.role === "superadmin";
   const [bankers, setBankers] = useState<BankerContact[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -256,8 +256,8 @@ export const BankersSearchView: React.FC = () => {
 
   // Open Add Modal
   const handleOpenAddModal = () => {
-    if (!isAdmin) {
-      setErrorMessage("Permission denied. Only Superadmin / Admin accounts can add banker records.");
+    if (!isSuperadmin) {
+      setErrorMessage("Permission denied. Only Superadmin can add banker records.");
       return;
     }
     setModalMode("create");
@@ -280,8 +280,8 @@ export const BankersSearchView: React.FC = () => {
 
   // Open Edit Modal
   const handleOpenEditModal = (banker: BankerContact) => {
-    if (!isAdmin) {
-      setErrorMessage("Permission denied. Only Superadmin / Admin accounts can edit banker records.");
+    if (!isSuperadmin) {
+      setErrorMessage("Permission denied. Only Superadmin can edit banker records.");
       return;
     }
     const id = banker._id || banker.id || "";
@@ -312,8 +312,8 @@ export const BankersSearchView: React.FC = () => {
 
   // Open CSV Import Modal
   const handleOpenImportModal = () => {
-    if (!isAdmin) {
-      setErrorMessage("Permission denied. Only Superadmin / Admin accounts can import banker directories.");
+    if (!isSuperadmin) {
+      setErrorMessage("Permission denied. Only Superadmin can import banker directories.");
       return;
     }
     setImportRawText("");
@@ -389,8 +389,8 @@ export const BankersSearchView: React.FC = () => {
 
   // Confirm Import
   const handleConfirmImport = async () => {
-    if (!isAdmin) {
-      setErrorMessage("Permission denied. Only Superadmin / Admin accounts can import bankers.");
+    if (!isSuperadmin) {
+      setErrorMessage("Permission denied. Only Superadmin can import bankers.");
       return;
     }
     if (!parsedData || parsedData.valid.length === 0) return;
@@ -495,8 +495,8 @@ export const BankersSearchView: React.FC = () => {
       return;
     }
 
-    if (!isAdmin) {
-      setErrorMessage("Permission denied. Only Superadmin / Admin accounts can create or update banker records.");
+    if (!isSuperadmin) {
+      setErrorMessage("Permission denied. Only Superadmin can create or update banker records.");
       return;
     }
 
@@ -564,8 +564,8 @@ export const BankersSearchView: React.FC = () => {
 
   // Handle Delete Record
   const handleConfirmDelete = async () => {
-    if (!isAdmin) {
-      setErrorMessage("Permission denied. Only Superadmin / Admin accounts can delete banker records.");
+    if (!isSuperadmin) {
+      setErrorMessage("Permission denied. Only Superadmin can delete banker records.");
       setDeletingBanker(null);
       return;
     }
@@ -601,8 +601,8 @@ export const BankersSearchView: React.FC = () => {
 
   // Handle Delete All Records (Admin Only)
   const handleDeleteAllBankers = async () => {
-    if (!isAdmin) {
-      setErrorMessage("Permission denied. Only Superadmin / Admin accounts can delete bankers.");
+    if (!isSuperadmin) {
+      setErrorMessage("Permission denied. Only Superadmin can delete bankers.");
       setIsDeleteAllModalOpen(false);
       return;
     }
@@ -689,7 +689,7 @@ export const BankersSearchView: React.FC = () => {
             </p>
           </div>
           <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
-            {isAdmin ? (
+            {isSuperadmin ? (
               <>
                 {/* Import from CSV Button */}
                 <button
@@ -981,7 +981,7 @@ export const BankersSearchView: React.FC = () => {
                     </span>
 
                     {/* Action Buttons: Edit & Delete (Admin Only) */}
-                    {isAdmin && (
+                    {isSuperadmin && (
                       <div className="flex items-center gap-1 pt-0.5">
                         <button
                           type="button"
@@ -1067,7 +1067,7 @@ export const BankersSearchView: React.FC = () => {
           <p className="text-xs text-[#576558] mb-4 max-w-sm">
             Try adjusting your search query, selecting another bank, or import your team roster directly from CSV.
           </p>
-          {isAdmin ? (
+          {isSuperadmin ? (
             <div className="flex items-center gap-2 flex-wrap justify-center">
               <button
                 type="button"
@@ -1097,7 +1097,7 @@ export const BankersSearchView: React.FC = () => {
       {/* ========================================================================= */}
       {/* MODAL: IMPORT FROM CSV / EXCEL                                           */}
       {/* ========================================================================= */}
-      {isImportModalOpen && isAdmin && (
+      {isImportModalOpen && isSuperadmin && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
           <div className="bg-white rounded-2xl border border-[#D8E4D5] shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden animate-scale-in">
             {/* Modal Header */}
@@ -1431,7 +1431,7 @@ export const BankersSearchView: React.FC = () => {
       {/* ========================================================================= */}
       {/* MODAL: ADD / EDIT BANKER DETAILS                                         */}
       {/* ========================================================================= */}
-      {isModalOpen && isAdmin && (
+      {isModalOpen && isSuperadmin && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fade-in">
           <div className="bg-white rounded-2xl border border-[#D8E4D5] shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-scale-in">
             {/* Modal Header */}
@@ -1708,7 +1708,7 @@ export const BankersSearchView: React.FC = () => {
       {/* ========================================================================= */}
       {/* MODAL: DELETE CONFIRMATION                                               */}
       {/* ========================================================================= */}
-      {deletingBanker && isAdmin && (
+      {deletingBanker && isSuperadmin && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fade-in">
           <div className="bg-white rounded-2xl border border-[#F8D7DA] shadow-2xl w-full max-w-md p-5 space-y-4 animate-scale-in">
             <div className="flex items-start gap-3">
@@ -1734,7 +1734,7 @@ export const BankersSearchView: React.FC = () => {
                 disabled={isSubmitting}
                 className="h-8 px-3.5 text-xs font-semibold border border-[#DCE4D9] hover:bg-[#F5F8F4] text-[#576558] rounded-lg transition-colors cursor-pointer"
               >
-                Cancel
+                No, Cancel
               </button>
               <button
                 type="button"
@@ -1750,7 +1750,7 @@ export const BankersSearchView: React.FC = () => {
                 ) : (
                   <>
                     <Trash2 size={13} />
-                    <span>Confirm Delete</span>
+                    <span>Yes, Delete</span>
                   </>
                 )}
               </button>
@@ -1762,7 +1762,7 @@ export const BankersSearchView: React.FC = () => {
       {/* ========================================================================= */}
       {/* MODAL: DELETE ALL CONFIRMATION                                            */}
       {/* ========================================================================= */}
-      {isDeleteAllModalOpen && isAdmin && (
+      {isDeleteAllModalOpen && isSuperadmin && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fade-in">
           <div className="bg-white rounded-2xl border border-[#F8D7DA] shadow-2xl w-full max-w-md p-5 space-y-4 animate-scale-in">
             <div className="flex items-start gap-3">
@@ -1787,7 +1787,7 @@ export const BankersSearchView: React.FC = () => {
                 disabled={isSubmitting}
                 className="h-8 px-3.5 text-xs font-semibold border border-[#DCE4D9] hover:bg-[#F5F8F4] text-[#576558] rounded-lg transition-colors cursor-pointer"
               >
-                Cancel
+                No, Cancel
               </button>
               <button
                 type="button"
@@ -1803,7 +1803,7 @@ export const BankersSearchView: React.FC = () => {
                 ) : (
                   <>
                     <Trash2 size={13} />
-                    <span>Confirm Delete All</span>
+                    <span>Yes, Delete All</span>
                   </>
                 )}
               </button>
