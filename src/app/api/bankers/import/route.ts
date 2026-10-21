@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import Banker from "@/lib/models/Banker";
+import { requireAdminAuth } from "@/lib/auth";
 
 export async function POST(request: Request) {
   try {
+    const auth = requireAdminAuth(request);
+    if (!auth.authorized) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     await connectToDatabase();
     const body = await request.json();
 
@@ -25,20 +31,20 @@ export async function POST(request: Request) {
 
     for (let i = 0; i < bankersList.length; i++) {
       const b = bankersList[i];
-      const name = (b.name || b.smName || "").trim();
-      const bankName = (b.bankName || b.bank || "").trim();
+      const name = (b.name || b.smName || b.smname || b.rmName || "").trim();
+      const bankName = (b.bankName || b.bank || b.bankname || "").trim();
       const phone = (b.phone || b.con || "").replace(/^CON[_-]?/i, "").trim();
       const branch = (b.branch || b.location || "Main Branch").trim();
-      const city = (b.city || b.location || b.stateName || "All India").trim();
-      const designation = (b.designation || "Sales Manager").trim();
-      const email = (b.email || b.smEmailId || "").trim();
+      const city = (b.city || b.stateName || b.location || "All India").trim();
+      const designation = (b.designation || "Relationship Manager").trim();
+      const email = (b.email || b.rmEmailId || b.rmEmail || b.smEmailId || b.smEmail || "").trim();
       const productsHandled =
         Array.isArray(b.productsHandled) && b.productsHandled.length > 0
           ? b.productsHandled
           : ["Personal Loan"];
       const notes = (
         b.notes ||
-        (b.stateName ? `State: ${b.stateName}` : "")
+        (b.location && b.stateName ? `Location: ${b.location} | State: ${b.stateName}` : b.stateName ? `State: ${b.stateName}` : "")
       ).trim();
 
       if (!name) {

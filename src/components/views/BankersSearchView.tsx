@@ -30,8 +30,11 @@ import {
   Layers,
   ArrowRight,
   ClipboardPaste,
+  Lock,
+  ShieldAlert,
 } from "lucide-react";
 import { useWorkspaceStore } from "@/store/useWorkspaceStore";
+import { useAuthStore } from "@/store/useAuthStore";
 import {
   parseBankersCsv,
   downloadSampleCsvTemplate,
@@ -156,7 +159,9 @@ const INITIAL_FALLBACK_DEMO_BANKERS: BankerContact[] = [
 
 export const BankersSearchView: React.FC = () => {
   const { setActiveTab } = useWorkspaceStore();
-  const [bankers, setBankers] = useState<BankerContact[]>(INITIAL_FALLBACK_DEMO_BANKERS);
+  const { user, token } = useAuthStore();
+  const isAdmin = user?.role === "superadmin" || (user?.role as string) === "admin";
+  const [bankers, setBankers] = useState<BankerContact[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -188,6 +193,7 @@ export const BankersSearchView: React.FC = () => {
 
   // Delete Confirmation State
   const [deletingBanker, setDeletingBanker] = useState<BankerContact | null>(null);
+  const [isDeleteAllModalOpen, setIsDeleteAllModalOpen] = useState<boolean>(false);
 
   // CSV Import State
   const [isImportModalOpen, setIsImportModalOpen] = useState<boolean>(false);
@@ -209,7 +215,7 @@ export const BankersSearchView: React.FC = () => {
       const res = await fetch("/api/bankers");
       if (res.ok) {
         const data = await res.json();
-        if (data.success && Array.isArray(data.bankers) && data.bankers.length > 0) {
+        if (data.success && Array.isArray(data.bankers)) {
           setBankers(data.bankers);
         }
       }
@@ -250,6 +256,10 @@ export const BankersSearchView: React.FC = () => {
 
   // Open Add Modal
   const handleOpenAddModal = () => {
+    if (!isAdmin) {
+      setErrorMessage("Permission denied. Only Superadmin / Admin accounts can add banker records.");
+      return;
+    }
     setModalMode("create");
     setEditingId(null);
     setFormName("");
@@ -270,6 +280,10 @@ export const BankersSearchView: React.FC = () => {
 
   // Open Edit Modal
   const handleOpenEditModal = (banker: BankerContact) => {
+    if (!isAdmin) {
+      setErrorMessage("Permission denied. Only Superadmin / Admin accounts can edit banker records.");
+      return;
+    }
     const id = banker._id || banker.id || "";
     setModalMode("edit");
     setEditingId(id);
@@ -298,6 +312,10 @@ export const BankersSearchView: React.FC = () => {
 
   // Open CSV Import Modal
   const handleOpenImportModal = () => {
+    if (!isAdmin) {
+      setErrorMessage("Permission denied. Only Superadmin / Admin accounts can import banker directories.");
+      return;
+    }
     setImportRawText("");
     setParsedData(null);
     setFileName("");
@@ -359,18 +377,22 @@ export const BankersSearchView: React.FC = () => {
     }
   }, [importSelectedBank, importCustomBank, importDesignation, importProduct, importRawText]);
 
-  // Load sample Axis Bank data from Image 2
+  // Load sample ICICI Bank data from reference sheet
   const handleLoadSampleData = () => {
-    setFileName("sample_axis_bank_odisha.csv");
+    setFileName("sample_icici_bank_ncr.csv");
     setImportRawText(SAMPLE_AXIS_BANK_CSV);
     setImportSelectedBank("auto");
-    setImportDesignation("Sales Manager");
+    setImportDesignation("Relationship Manager");
     setImportProduct("Personal Loan");
-    runParsing(SAMPLE_AXIS_BANK_CSV, "auto", "", "Sales Manager", "Personal Loan");
+    runParsing(SAMPLE_AXIS_BANK_CSV, "auto", "", "Relationship Manager", "Personal Loan");
   };
 
   // Confirm Import
   const handleConfirmImport = async () => {
+    if (!isAdmin) {
+      setErrorMessage("Permission denied. Only Superadmin / Admin accounts can import bankers.");
+      return;
+    }
     if (!parsedData || parsedData.valid.length === 0) return;
 
     setIsImporting(true);
@@ -381,9 +403,14 @@ export const BankersSearchView: React.FC = () => {
         bankers: parsedData.valid,
       };
 
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
       const res = await fetch("/api/bankers/import", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(payload),
       });
 
@@ -406,41 +433,10 @@ export const BankersSearchView: React.FC = () => {
         );
         setIsImportModalOpen(false);
       } else {
-        // Fallback: If DB failed, still provide optimistic local import
-        console.warn("API import returned error, applying client-side fallback", data);
-        const localCreated: BankerContact[] = parsedData.valid.map((item, idx) => ({
-          ...item,
-          _id: `imported-${Date.now()}-${idx}`,
-        }));
-        setBankers((prev) => [...localCreated, ...prev]);
-
-        const bankKeys = Object.keys(parsedData.banksDetected);
-        if (bankKeys.length > 0) {
-          setSelectedBank(bankKeys[0]);
-        }
-
-        setStatusMessage(
-          `Imported ${localCreated.length} banker contacts into workspace directory.`
-        );
-        setIsImportModalOpen(false);
+        setErrorMessage(data.error || "Failed to import bankers. Superadmin permission required.");
       }
     } catch (err: any) {
-      console.warn("Network error during import, applying client fallback:", err);
-      const localCreated: BankerContact[] = parsedData.valid.map((item, idx) => ({
-        ...item,
-        _id: `imported-${Date.now()}-${idx}`,
-      }));
-      setBankers((prev) => [...localCreated, ...prev]);
-
-      const bankKeys = Object.keys(parsedData.banksDetected);
-      if (bankKeys.length > 0) {
-        setSelectedBank(bankKeys[0]);
-      }
-
-      setStatusMessage(
-        `Loaded ${localCreated.length} banker records into directory.`
-      );
-      setIsImportModalOpen(false);
+      setErrorMessage(err.message || "Network error occurred during import.");
     } finally {
       setIsImporting(false);
     }
@@ -499,6 +495,11 @@ export const BankersSearchView: React.FC = () => {
       return;
     }
 
+    if (!isAdmin) {
+      setErrorMessage("Permission denied. Only Superadmin / Admin accounts can create or update banker records.");
+      return;
+    }
+
     setIsSubmitting(true);
     setErrorMessage("");
     setStatusMessage("");
@@ -516,11 +517,16 @@ export const BankersSearchView: React.FC = () => {
       notes: formNotes.trim(),
     };
 
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
     try {
       if (modalMode === "create") {
         const res = await fetch("/api/bankers", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify(payload),
         });
         const data = await res.json();
@@ -529,21 +535,13 @@ export const BankersSearchView: React.FC = () => {
           setStatusMessage(`Banker record "${formName}" created successfully!`);
           setIsModalOpen(false);
         } else {
-          // Client-side fallback if DB offline
-          const fallbackBanker: BankerContact = {
-            _id: `banker-${Date.now()}`,
-            ...payload,
-            isDemo: false,
-          };
-          setBankers((prev) => [fallbackBanker, ...prev]);
-          setStatusMessage(`Banker record "${formName}" added to local directory!`);
-          setIsModalOpen(false);
+          setErrorMessage(data.error || "Failed to create banker record.");
         }
       } else {
         // Edit Mode
         const res = await fetch("/api/bankers", {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({ id: editingId, ...payload }),
         });
         const data = await res.json();
@@ -554,32 +552,11 @@ export const BankersSearchView: React.FC = () => {
           setStatusMessage(`Banker record "${formName}" updated successfully!`);
           setIsModalOpen(false);
         } else {
-          // Client-side fallback
-          setBankers((prev) =>
-            prev.map((b) =>
-              (b._id || b.id) === editingId ? { ...b, ...payload } : b
-            )
-          );
-          setStatusMessage(`Banker record "${formName}" updated successfully!`);
-          setIsModalOpen(false);
+          setErrorMessage(data.error || "Failed to update banker record.");
         }
       }
     } catch (err: any) {
-      // Offline fallback
-      const fallbackBanker: BankerContact = {
-        _id: editingId || `banker-${Date.now()}`,
-        ...payload,
-        isDemo: false,
-      };
-      if (modalMode === "create") {
-        setBankers((prev) => [fallbackBanker, ...prev]);
-      } else {
-        setBankers((prev) =>
-          prev.map((b) => ((b._id || b.id) === editingId ? fallbackBanker : b))
-        );
-      }
-      setStatusMessage(`Banker record "${formName}" saved.`);
-      setIsModalOpen(false);
+      setErrorMessage(err.message || "Failed to save banker record.");
     } finally {
       setIsSubmitting(false);
     }
@@ -587,30 +564,72 @@ export const BankersSearchView: React.FC = () => {
 
   // Handle Delete Record
   const handleConfirmDelete = async () => {
+    if (!isAdmin) {
+      setErrorMessage("Permission denied. Only Superadmin / Admin accounts can delete banker records.");
+      setDeletingBanker(null);
+      return;
+    }
     if (!deletingBanker) return;
     const id = deletingBanker._id || deletingBanker.id;
     if (!id) return;
 
     setIsSubmitting(true);
     try {
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
       const res = await fetch(`/api/bankers?id=${encodeURIComponent(id)}`, {
         method: "DELETE",
+        headers,
       });
       const data = await res.json();
       if (res.ok && data.success) {
         setBankers((prev) => prev.filter((b) => (b._id || b.id) !== id));
         setStatusMessage(`Deleted banker record for "${deletingBanker.name}".`);
       } else {
-        // Fallback delete
-        setBankers((prev) => prev.filter((b) => (b._id || b.id) !== id));
-        setStatusMessage(`Removed banker record for "${deletingBanker.name}".`);
+        setErrorMessage(data.error || "Failed to delete banker record.");
       }
     } catch (err: any) {
-      setBankers((prev) => prev.filter((b) => (b._id || b.id) !== id));
-      setStatusMessage(`Removed banker record for "${deletingBanker.name}".`);
+      setErrorMessage(err.message || "Failed to delete banker record.");
     } finally {
       setIsSubmitting(false);
       setDeletingBanker(null);
+    }
+  };
+
+  // Handle Delete All Records (Admin Only)
+  const handleDeleteAllBankers = async () => {
+    if (!isAdmin) {
+      setErrorMessage("Permission denied. Only Superadmin / Admin accounts can delete bankers.");
+      setIsDeleteAllModalOpen(false);
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      const res = await fetch("/api/bankers?all=true", {
+        method: "DELETE",
+        headers,
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setBankers([]);
+        setStatusMessage(data.message || "All banker records have been deleted.");
+      } else {
+        setErrorMessage(data.error || "Failed to delete all bankers.");
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || "Failed to delete all bankers.");
+    } finally {
+      setIsSubmitting(false);
+      setIsDeleteAllModalOpen(false);
     }
   };
 
@@ -670,26 +689,48 @@ export const BankersSearchView: React.FC = () => {
             </p>
           </div>
           <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
-            {/* Import from CSV Button */}
-            <button
-              type="button"
-              onClick={handleOpenImportModal}
-              className="h-9 px-3.5 bg-white hover:bg-[#F0F5EE] text-[#163A2C] border border-[#C5DEC0] text-xs font-semibold rounded-xl inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-[0.98]"
-              title="Bulk import banker contacts from CSV or Excel"
-            >
-              <Upload size={14} className="text-[#257853]" />
-              <span>Import from CSV</span>
-            </button>
+            {isAdmin ? (
+              <>
+                {/* Import from CSV Button */}
+                <button
+                  type="button"
+                  onClick={handleOpenImportModal}
+                  className="h-9 px-3.5 bg-white hover:bg-[#F0F5EE] text-[#163A2C] border border-[#C5DEC0] text-xs font-semibold rounded-xl inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-[0.98]"
+                  title="Bulk import banker contacts from CSV or Excel"
+                >
+                  <Upload size={14} className="text-[#257853]" />
+                  <span>Import from CSV</span>
+                </button>
 
-            {/* Add New Banker Button */}
-            <button
-              type="button"
-              onClick={handleOpenAddModal}
-              className="h-9 px-4 bg-[#163A2C] hover:bg-[#102B21] text-white text-xs font-semibold rounded-xl inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
-            >
-              <Plus size={15} />
-              <span>Add New Banker</span>
-            </button>
+                {/* Add New Banker Button */}
+                <button
+                  type="button"
+                  onClick={handleOpenAddModal}
+                  className="h-9 px-4 bg-[#163A2C] hover:bg-[#102B21] text-white text-xs font-semibold rounded-xl inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
+                >
+                  <Plus size={15} />
+                  <span>Add New Banker</span>
+                </button>
+
+                {/* Delete All Button (Admin Only, when bankers exist) */}
+                {bankers.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setIsDeleteAllModalOpen(true)}
+                    className="h-9 px-3 bg-white hover:bg-[#FDF2F2] text-[#991B1B] border border-[#F8D7DA] text-xs font-semibold rounded-xl inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-[0.98]"
+                    title="Delete all banker records in the directory"
+                  >
+                    <Trash2 size={13} />
+                    <span>Delete All</span>
+                  </button>
+                )}
+              </>
+            ) : (
+              <div className="h-9 px-3 bg-[#F4F6F2] text-[#637265] border border-[#E0E7DC] rounded-xl text-xs font-medium inline-flex items-center gap-1.5 select-none shadow-2xs">
+                <Lock size={13} className="text-[#829283]" />
+                <span>Directory (Read-Only)</span>
+              </div>
+            )}
 
             {/* Overview Link */}
             <button
@@ -939,25 +980,27 @@ export const BankersSearchView: React.FC = () => {
                       {banker.city}
                     </span>
 
-                    {/* Action Buttons: Edit & Delete */}
-                    <div className="flex items-center gap-1 pt-0.5">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEditModal(banker)}
-                        className="w-7 h-7 rounded-lg border border-[#E3EBE0] bg-white hover:bg-[#F2F6F0] text-[#576558] hover:text-[#163A2C] flex items-center justify-center transition-all cursor-pointer shadow-2xs active:scale-95"
-                        title="Edit Banker Details"
-                      >
-                        <Pencil size={12} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDeletingBanker(banker)}
-                        className="w-7 h-7 rounded-lg border border-[#F8D7DA] bg-white hover:bg-[#FDF2F2] text-[#991B1B] flex items-center justify-center transition-all cursor-pointer shadow-2xs active:scale-95"
-                        title="Delete Banker Record"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
+                    {/* Action Buttons: Edit & Delete (Admin Only) */}
+                    {isAdmin && (
+                      <div className="flex items-center gap-1 pt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditModal(banker)}
+                          className="w-7 h-7 rounded-lg border border-[#E3EBE0] bg-white hover:bg-[#F2F6F0] text-[#576558] hover:text-[#163A2C] flex items-center justify-center transition-all cursor-pointer shadow-2xs active:scale-95"
+                          title="Edit Banker Details"
+                        >
+                          <Pencil size={12} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeletingBanker(banker)}
+                          className="w-7 h-7 rounded-lg border border-[#F8D7DA] bg-white hover:bg-[#FDF2F2] text-[#991B1B] flex items-center justify-center transition-all cursor-pointer shadow-2xs active:scale-95"
+                          title="Delete Banker Record"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1024,31 +1067,37 @@ export const BankersSearchView: React.FC = () => {
           <p className="text-xs text-[#576558] mb-4 max-w-sm">
             Try adjusting your search query, selecting another bank, or import your team roster directly from CSV.
           </p>
-          <div className="flex items-center gap-2 flex-wrap justify-center">
-            <button
-              type="button"
-              onClick={handleOpenImportModal}
-              className="h-9 px-4 bg-white hover:bg-[#F0F5EE] text-[#163A2C] border border-[#C5DEC0] text-xs font-semibold rounded-xl inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-            >
-              <Upload size={14} className="text-[#257853]" />
-              <span>Import from CSV</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleOpenAddModal}
-              className="h-9 px-4 bg-[#163A2C] hover:bg-[#102B21] text-white text-xs font-semibold rounded-xl inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
-            >
-              <Plus size={14} />
-              <span>Add New Banker Contact</span>
-            </button>
-          </div>
+          {isAdmin ? (
+            <div className="flex items-center gap-2 flex-wrap justify-center">
+              <button
+                type="button"
+                onClick={handleOpenImportModal}
+                className="h-9 px-4 bg-white hover:bg-[#F0F5EE] text-[#163A2C] border border-[#C5DEC0] text-xs font-semibold rounded-xl inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+              >
+                <Upload size={14} className="text-[#257853]" />
+                <span>Import from CSV</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleOpenAddModal}
+                className="h-9 px-4 bg-[#163A2C] hover:bg-[#102B21] text-white text-xs font-semibold rounded-xl inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+              >
+                <Plus size={14} />
+                <span>Add New Banker Contact</span>
+              </button>
+            </div>
+          ) : (
+            <div className="text-xs text-[#829283] italic">
+              Try clearing your search query or selecting another bank from the filter dropdown.
+            </div>
+          )}
         </div>
       )}
 
       {/* ========================================================================= */}
       {/* MODAL: IMPORT FROM CSV / EXCEL                                           */}
       {/* ========================================================================= */}
-      {isImportModalOpen && (
+      {isImportModalOpen && isAdmin && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
           <div className="bg-white rounded-2xl border border-[#D8E4D5] shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden animate-scale-in">
             {/* Modal Header */}
@@ -1062,7 +1111,7 @@ export const BankersSearchView: React.FC = () => {
                     Import Bankers from CSV / Excel
                   </h3>
                   <p className="text-[11px] sm:text-xs text-[#576558]">
-                    Supports exact columns: <code className="bg-[#EBF3E8] text-[#163A2C] px-1.5 py-0.2 rounded font-mono text-[10px]">SM Name</code>, <code className="bg-[#EBF3E8] text-[#163A2C] px-1.5 py-0.2 rounded font-mono text-[10px]">Location</code>, <code className="bg-[#EBF3E8] text-[#163A2C] px-1.5 py-0.2 rounded font-mono text-[10px]">State Name</code>, <code className="bg-[#EBF3E8] text-[#163A2C] px-1.5 py-0.2 rounded font-mono text-[10px]">SM Email id</code>, <code className="bg-[#EBF3E8] text-[#163A2C] px-1.5 py-0.2 rounded font-mono text-[10px]">CON</code>
+                    Supports exact columns: <code className="bg-[#EBF3E8] text-[#163A2C] px-1.5 py-0.2 rounded font-mono text-[10px]">SM name</code>, <code className="bg-[#EBF3E8] text-[#163A2C] px-1.5 py-0.2 rounded font-mono text-[10px]">Location</code>, <code className="bg-[#EBF3E8] text-[#163A2C] px-1.5 py-0.2 rounded font-mono text-[10px]">State Name</code>, <code className="bg-[#EBF3E8] text-[#163A2C] px-1.5 py-0.2 rounded font-mono text-[10px]">Bank Name</code>, <code className="bg-[#EBF3E8] text-[#163A2C] px-1.5 py-0.2 rounded font-mono text-[10px]">RM email id</code>, <code className="bg-[#EBF3E8] text-[#163A2C] px-1.5 py-0.2 rounded font-mono text-[10px]">CON</code>
                   </p>
                 </div>
               </div>
@@ -1089,7 +1138,7 @@ export const BankersSearchView: React.FC = () => {
                     className="h-7 px-2.5 bg-[#163A2C] hover:bg-[#102B21] text-white font-semibold rounded-lg inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
                   >
                     <Sparkles size={12} />
-                    <span>Load 26 Sample Records (Axis Bank)</span>
+                    <span>Load 17 Sample Records (ICICI Bank)</span>
                   </button>
                   <button
                     type="button"
@@ -1382,7 +1431,7 @@ export const BankersSearchView: React.FC = () => {
       {/* ========================================================================= */}
       {/* MODAL: ADD / EDIT BANKER DETAILS                                         */}
       {/* ========================================================================= */}
-      {isModalOpen && (
+      {isModalOpen && isAdmin && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fade-in">
           <div className="bg-white rounded-2xl border border-[#D8E4D5] shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-scale-in">
             {/* Modal Header */}
@@ -1659,7 +1708,7 @@ export const BankersSearchView: React.FC = () => {
       {/* ========================================================================= */}
       {/* MODAL: DELETE CONFIRMATION                                               */}
       {/* ========================================================================= */}
-      {deletingBanker && (
+      {deletingBanker && isAdmin && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fade-in">
           <div className="bg-white rounded-2xl border border-[#F8D7DA] shadow-2xl w-full max-w-md p-5 space-y-4 animate-scale-in">
             <div className="flex items-start gap-3">
@@ -1702,6 +1751,59 @@ export const BankersSearchView: React.FC = () => {
                   <>
                     <Trash2 size={13} />
                     <span>Confirm Delete</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: DELETE ALL CONFIRMATION                                            */}
+      {/* ========================================================================= */}
+      {isDeleteAllModalOpen && isAdmin && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-2xl border border-[#F8D7DA] shadow-2xl w-full max-w-md p-5 space-y-4 animate-scale-in">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#FDF2F2] text-[#991B1B] flex items-center justify-center shrink-0">
+                <Trash2 size={20} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-[#17241B]">
+                  Delete All Banker Records?
+                </h3>
+                <p className="text-xs text-[#576558] mt-1 leading-relaxed">
+                  Are you sure you want to permanently delete all{" "}
+                  <strong className="text-[#991B1B]">{bankers.length}</strong> banker contacts from your workspace directory? This action cannot be undone.
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setIsDeleteAllModalOpen(false)}
+                disabled={isSubmitting}
+                className="h-8 px-3.5 text-xs font-semibold border border-[#DCE4D9] hover:bg-[#F5F8F4] text-[#576558] rounded-lg transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteAllBankers}
+                disabled={isSubmitting}
+                className="h-8 px-4 bg-[#991B1B] hover:bg-[#7F1D1D] text-white text-xs font-semibold rounded-lg inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
+              >
+                {isSubmitting ? (
+                  <>
+                    <RefreshCw size={12} className="animate-spin" />
+                    <span>Deleting All...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={13} />
+                    <span>Confirm Delete All</span>
                   </>
                 )}
               </button>

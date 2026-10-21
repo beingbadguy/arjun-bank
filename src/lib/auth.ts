@@ -50,3 +50,38 @@ export function extractTokenFromRequest(request: Request): string | null {
 
   return null;
 }
+
+export function requireAdminAuth(request: Request): {
+  authorized: boolean;
+  status: number;
+  error?: string;
+  payload?: TokenPayload;
+} {
+  const token = extractTokenFromRequest(request);
+  if (!token) {
+    return {
+      authorized: false,
+      status: 401,
+      error: "Authentication required. Please log in with an Admin / Superadmin account.",
+    };
+  }
+
+  const payload = verifyToken(token);
+  if (!payload) {
+    return {
+      authorized: false,
+      status: 401,
+      error: "Invalid or expired session. Please log in again.",
+    };
+  }
+
+  if (payload.role !== "superadmin" && (payload.role as string) !== "admin") {
+    return {
+      authorized: false,
+      status: 403,
+      error: "Access denied. Only Superadmin / Admin accounts can create, update, or delete banker records.",
+    };
+  }
+
+  return { authorized: true, status: 200, payload };
+}

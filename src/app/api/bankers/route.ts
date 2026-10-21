@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import Banker from "@/lib/models/Banker";
+import { requireAdminAuth } from "@/lib/auth";
 
 const INITIAL_DEMO_BANKERS = [
   {
@@ -61,12 +62,6 @@ export async function GET(request: Request) {
   try {
     await connectToDatabase();
 
-    // Auto-seed demo bankers if database has none
-    const existingCount = await Banker.countDocuments();
-    if (existingCount === 0) {
-      await Banker.insertMany(INITIAL_DEMO_BANKERS);
-    }
-
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") || "";
     const bank = searchParams.get("bank") || "all";
@@ -110,6 +105,11 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const auth = requireAdminAuth(request);
+    if (!auth.authorized) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     await connectToDatabase();
     const body = await request.json();
 
@@ -170,6 +170,11 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
+    const auth = requireAdminAuth(request);
+    if (!auth.authorized) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     await connectToDatabase();
     const body = await request.json();
 
@@ -226,16 +231,31 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const auth = requireAdminAuth(request);
+    if (!auth.authorized) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     await connectToDatabase();
 
     const { searchParams } = new URL(request.url);
+    const deleteAll = searchParams.get("all") === "true";
     let id = searchParams.get("id");
 
-    if (!id) {
+    if (!id && !deleteAll) {
       try {
         const body = await request.json();
         id = body.id || body._id;
       } catch {}
+    }
+
+    if (deleteAll || id === "all") {
+      const deleteResult = await Banker.deleteMany({});
+      return NextResponse.json({
+        success: true,
+        message: `Successfully deleted all ${deleteResult.deletedCount} banker records.`,
+        deletedCount: deleteResult.deletedCount,
+      });
     }
 
     if (!id) {
