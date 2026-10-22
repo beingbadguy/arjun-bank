@@ -186,7 +186,7 @@ export async function POST(request: Request) {
   } catch (error: any) {
     if (error.code === 11000) {
       return NextResponse.json(
-        { error: `A record with PIN code "${body.pincode}" already exists.` },
+        { error: "A record with this PIN code already exists in the database." },
         { status: 409 }
       );
     }

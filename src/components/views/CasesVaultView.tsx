@@ -715,14 +715,14 @@ export const CasesVaultView: React.FC = () => {
             type="button"
             onClick={() => fetchCases()}
             disabled={isLoading}
-            className="p-2 sm:px-3 sm:py-2 bg-white hover:bg-[#EEF4EB] border border-[#DCE4D9] rounded-lg text-xs font-semibold text-[#17241B] flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
+            className="p-2 sm:px-3 sm:py-2 bg-white hover:bg-[#EEF4EB] border border-[#DCE4D9] rounded-lg text-xs font-semibold text-[#17241B] flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95 disabled:opacity-60"
             title="Refresh vault records"
           >
             <RefreshCw
               size={14}
-              className={`text-[#576558] ${isLoading ? "animate-spin" : ""}`}
+              className={`text-[#576558] ${isLoading ? "animate-spin text-[#163A2C]" : ""}`}
             />
-            <span className="hidden sm:inline">Refresh</span>
+            <span className="hidden sm:inline">{isLoading ? "Data is coming..." : "Refresh"}</span>
           </button>
 
           <button
@@ -851,20 +851,27 @@ export const CasesVaultView: React.FC = () => {
           />
           <input
             type="text"
-            className="w-full h-9 pl-9 pr-3 rounded-lg border border-[#DCE4D9] bg-[#F8F9F5] text-xs text-[#17241B] outline-none focus:border-[#163A2C] focus:bg-white transition-all placeholder:text-[#9AAB9B]"
+            className={`w-full h-9 pl-9 rounded-lg border border-[#DCE4D9] bg-[#F8F9F5] text-xs text-[#17241B] outline-none focus:border-[#163A2C] focus:bg-white transition-all placeholder:text-[#9AAB9B] ${
+              isLoading ? "pr-36" : "pr-3"
+            }`}
             placeholder="Search by Name, App No, Mobile, Bank, Location, PAN Card, Remarks..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
-          {searchQuery && (
+          {isLoading ? (
+            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-[11px] font-semibold text-[#163A2C] bg-[#EBF3E8] border border-[#CCE0C6] px-2 py-0.5 rounded-md shadow-2xs animate-pulse pointer-events-none">
+              <RefreshCw size={11} className="animate-spin text-[#163A2C]" />
+              <span>Data is coming...</span>
+            </div>
+          ) : searchQuery ? (
             <button
               type="button"
               onClick={() => setSearchQuery("")}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
             >
               <X size={14} />
             </button>
-          )}
+          ) : null}
         </div>
 
         {/* Filters */}
@@ -1053,12 +1060,20 @@ export const CasesVaultView: React.FC = () => {
             <tbody className="divide-y divide-black/20 text-xs">
               {isLoading ? (
                 <tr>
-                  <td colSpan={12} className="py-12 text-center text-gray-500">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <RefreshCw size={20} className="animate-spin text-[#163A2C]" />
-                      <span className="text-xs font-semibold">
-                        Decrypting and loading locked case records...
+                  <td colSpan={12} className="py-14 text-center">
+                    <div className="flex flex-col items-center justify-center gap-2.5">
+                      <div className="w-11 h-11 rounded-full bg-[#EBF3E8] border border-[#CCE0C6] flex items-center justify-center shadow-2xs">
+                        <RefreshCw size={20} className="animate-spin text-[#163A2C]" />
+                      </div>
+                      <span className="text-xs font-bold text-[#17241B]">
+                        Data is coming...
                       </span>
+                      <span className="text-[11px] text-[#576558]">
+                        Decrypting and fetching locked case records from database...
+                      </span>
+                      <div className="w-44 bg-[#E5ECE2] h-1.5 overflow-hidden rounded-full mt-1 relative">
+                        <div className="h-full bg-[#163A2C] w-1/3 rounded-full animate-indeterminate" />
+                      </div>
                     </div>
                   </td>
                 </tr>

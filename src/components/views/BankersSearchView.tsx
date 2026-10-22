@@ -212,15 +212,23 @@ export const BankersSearchView: React.FC = () => {
   const fetchBankers = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/bankers");
+      const headers: Record<string, string> = {};
+      const activeToken = token || useAuthStore.getState().token;
+      if (activeToken) {
+        headers["Authorization"] = `Bearer ${activeToken}`;
+      }
+      const res = await fetch("/api/bankers", { headers });
       if (res.ok) {
         const data = await res.json();
         if (data.success && Array.isArray(data.bankers)) {
-          setBankers(data.bankers);
+          setBankers(data.bankers.length > 0 ? data.bankers : INITIAL_FALLBACK_DEMO_BANKERS);
         }
+      } else {
+        setBankers((prev) => (prev.length > 0 ? prev : INITIAL_FALLBACK_DEMO_BANKERS));
       }
     } catch (err) {
-      console.warn("Could not fetch bankers from API, using cached state", err);
+      console.warn("Could not fetch bankers from API, using fallback state", err);
+      setBankers((prev) => (prev.length > 0 ? prev : INITIAL_FALLBACK_DEMO_BANKERS));
     } finally {
       setIsLoading(false);
     }
@@ -228,7 +236,7 @@ export const BankersSearchView: React.FC = () => {
 
   useEffect(() => {
     fetchBankers();
-  }, []);
+  }, [token]);
 
   // Compute available unique banks and their counts dynamically from data
   const availableBanks = useMemo(() => {
@@ -852,9 +860,24 @@ export const BankersSearchView: React.FC = () => {
             placeholder="Search banker by name, bank (Axis, HDFC, Kotak), city, branch, phone, or product..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm bg-[#FAFBF9] border border-[#DCE4D9] rounded-xl outline-none focus:border-[#163A2C] focus:bg-white transition-all text-[#17241B] placeholder:text-[#9AA89A]"
+            className={`w-full pl-10 py-2.5 text-xs sm:text-sm bg-[#FAFBF9] border border-[#DCE4D9] rounded-xl outline-none focus:border-[#163A2C] focus:bg-white transition-all text-[#17241B] placeholder:text-[#9AA89A] ${
+              isLoading ? "pr-36" : "pr-4"
+            }`}
           />
+          {isLoading && (
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-[11px] font-semibold text-[#163A2C] bg-[#EBF3E8] border border-[#CCE0C6] px-2.5 py-1 rounded-md shadow-2xs animate-pulse pointer-events-none">
+              <RefreshCw size={11} className="animate-spin text-[#163A2C]" />
+              <span>Data is coming...</span>
+            </div>
+          )}
         </div>
+
+        {/* Indeterminate loading bar */}
+        {isLoading && (
+          <div className="w-full bg-[#E5ECE2] h-1 overflow-hidden rounded-full my-1 relative">
+            <div className="h-full bg-[#163A2C] w-1/3 rounded-full animate-indeterminate" />
+          </div>
+        )}
 
         {/* Dynamic Bank Category Pills */}
         <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-[#EEF2EB]">
@@ -919,17 +942,64 @@ export const BankersSearchView: React.FC = () => {
           <button
             type="button"
             onClick={fetchBankers}
-            className="ml-auto inline-flex items-center gap-1 text-[11px] font-semibold text-[#829283] hover:text-[#163A2C] transition-colors cursor-pointer pl-2"
+            disabled={isLoading}
+            className="ml-auto inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#829283] hover:text-[#163A2C] disabled:opacity-60 transition-colors cursor-pointer pl-2"
             title="Refresh Banker Directory"
           >
-            <RefreshCw size={11} className={isLoading ? "animate-spin" : ""} />
-            <span>Sync</span>
+            <RefreshCw size={11} className={isLoading ? "animate-spin text-[#163A2C]" : ""} />
+            <span>{isLoading ? "Data is coming..." : "Sync"}</span>
           </button>
         </div>
       </div>
 
       {/* Bankers Directory Grid */}
-      {filteredBankers.length > 0 ? (
+      {isLoading ? (
+        <div className="space-y-4">
+          <div className="bg-[#FAFBF9] border border-[#E3EBE0] rounded-2xl p-8 sm:p-12 flex flex-col items-center justify-center text-center shadow-2xs">
+            <div className="w-12 h-12 rounded-full bg-[#EBF3E8] border border-[#CCE0C6] text-[#163A2C] flex items-center justify-center mb-3 shadow-2xs">
+              <RefreshCw size={22} className="animate-spin text-[#163A2C]" />
+            </div>
+            <h3 className="text-base font-bold text-[#17241B] mb-1">
+              Loading Banker Directory...
+            </h3>
+            <p className="text-xs text-[#576558] mb-3 max-w-sm">
+              Data is coming... Fetching verified bank contacts, branch details, and product specializations.
+            </p>
+            <div className="w-48 bg-[#E5ECE2] h-1.5 overflow-hidden rounded-full relative">
+              <div className="h-full bg-[#163A2C] w-1/3 rounded-full animate-indeterminate" />
+            </div>
+          </div>
+
+          {/* Skeleton Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[1, 2, 3, 4].map((sk) => (
+              <div
+                key={sk}
+                className="bg-white rounded-2xl border border-[#E3EBE0] p-4 sm:p-5 shadow-2xs space-y-3.5 animate-pulse"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-[#EBEFEA] shrink-0" />
+                    <div className="space-y-1.5">
+                      <div className="h-3.5 w-32 bg-[#E3EBE0] rounded" />
+                      <div className="h-2.5 w-24 bg-[#EEF2EB] rounded" />
+                    </div>
+                  </div>
+                  <div className="h-5 w-16 bg-[#EEF2EB] rounded-full" />
+                </div>
+                <div className="space-y-2 pt-2 border-t border-[#EEF2EB]">
+                  <div className="h-2.5 w-3/4 bg-[#EEF2EB] rounded" />
+                  <div className="h-2.5 w-1/2 bg-[#EEF2EB] rounded" />
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <div className="h-4 w-16 bg-[#EEF2EB] rounded" />
+                  <div className="h-4 w-20 bg-[#EEF2EB] rounded" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : filteredBankers.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {filteredBankers.map((banker) => {
             const id = banker._id || banker.id || "";

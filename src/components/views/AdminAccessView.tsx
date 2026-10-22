@@ -301,17 +301,29 @@ export const AdminAccessView: React.FC = () => {
           </h3>
           <button
             type="button"
-            className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-[#E3EBE0] hover:bg-[#F5F8F4] rounded-lg text-xs font-semibold text-[#17241B] transition-colors cursor-pointer"
+            disabled={isLoading}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-[#E3EBE0] hover:bg-[#F5F8F4] disabled:opacity-60 rounded-lg text-xs font-semibold text-[#17241B] transition-colors cursor-pointer"
             onClick={fetchUsers}
           >
-            <RefreshCw size={12} className={isLoading ? "animate-spin" : ""} />
-            <span>Refresh</span>
+            <RefreshCw size={12} className={isLoading ? "animate-spin text-[#163A2C]" : ""} />
+            <span>{isLoading ? "Data is coming..." : "Refresh"}</span>
           </button>
         </div>
 
         {isLoading ? (
-          <div className="text-center py-6 text-xs text-[#829283]">
-            Loading users from MongoDB...
+          <div className="bg-[#FAFBF9] border border-[#E3EBE0] rounded-xl p-8 flex flex-col items-center justify-center text-center space-y-2">
+            <div className="w-10 h-10 rounded-full bg-[#EBF3E8] border border-[#CCE0C6] flex items-center justify-center shadow-2xs">
+              <RefreshCw size={16} className="animate-spin text-[#163A2C]" />
+            </div>
+            <span className="text-xs font-bold text-[#17241B]">
+              Data is coming...
+            </span>
+            <span className="text-[11px] text-[#576558]">
+              Loading workspace user accounts from database...
+            </span>
+            <div className="w-36 bg-[#E5ECE2] h-1.5 overflow-hidden rounded-full relative">
+              <div className="h-full bg-[#163A2C] w-1/3 rounded-full animate-indeterminate" />
+            </div>
           </div>
         ) : (
           <div className="border border-[#E3EBE0] rounded-xl overflow-x-auto">

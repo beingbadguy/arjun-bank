@@ -93,11 +93,17 @@ export const DataUpdateView: React.FC = () => {
   const [newPinCity, setNewPinCity] = useState<string>("");
   const [newPinState, setNewPinState] = useState<string>("");
 
+  const [isLoadingCounts, setIsLoadingCounts] = useState<boolean>(true);
+
   const refreshCounts = async () => {
+    setIsLoadingCounts(true);
     try {
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
       const [compRes, pinRes] = await Promise.all([
-        fetch("/api/companies"),
-        fetch("/api/pincodes?limit=1"),
+        fetch("/api/companies", { headers }),
+        fetch("/api/pincodes?limit=1", { headers }),
       ]);
       const compData = await compRes.json();
       const pinData = await pinRes.json();
@@ -105,6 +111,8 @@ export const DataUpdateView: React.FC = () => {
       if (pinData.success) setPincodeCount(pinData.totalCount || 30630);
     } catch (e) {
       console.error("Failed to fetch data counts", e);
+    } finally {
+      setIsLoadingCounts(false);
     }
   };
 
@@ -304,7 +312,14 @@ export const DataUpdateView: React.FC = () => {
             </span>
           </div>
           <div className="text-2xl font-extrabold text-[#163A2C] font-mono mt-0.5">
-            {pincodeCount.toLocaleString()}
+            {isLoadingCounts ? (
+              <span className="flex items-center gap-1.5 text-xs text-[#163A2C] font-sans font-semibold py-1">
+                <RefreshCw size={12} className="animate-spin text-[#163A2C]" />
+                <span>Data is coming...</span>
+              </span>
+            ) : (
+              pincodeCount.toLocaleString()
+            )}
           </div>
           <div className="text-[11px] text-[#576558] mt-1 flex items-center justify-between">
             <span>187,457 Lender Mappings</span>
@@ -329,7 +344,14 @@ export const DataUpdateView: React.FC = () => {
             </span>
           </div>
           <div className="text-2xl font-extrabold text-[#163A2C] font-mono mt-0.5">
-            {companyCount}
+            {isLoadingCounts ? (
+              <span className="flex items-center gap-1.5 text-xs text-[#163A2C] font-sans font-semibold py-1">
+                <RefreshCw size={12} className="animate-spin text-[#163A2C]" />
+                <span>Data is coming...</span>
+              </span>
+            ) : (
+              companyCount.toLocaleString()
+            )}
           </div>
           <div className="text-[11px] text-[#576558] mt-1 flex items-center justify-between">
             <span>Pre-approved multipliers</span>

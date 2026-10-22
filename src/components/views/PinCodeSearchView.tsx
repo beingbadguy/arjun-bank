@@ -791,45 +791,82 @@ export const PinCodeSearchView: React.FC = () => {
         </p>
 
         <form onSubmit={handleSearchSubmit}>
-          <div className="flex flex-col sm:flex-row gap-2.5 mb-3">
+          <div className="flex flex-col sm:flex-row gap-2.5 mb-2.5">
             <div className="flex-1 relative flex items-center">
               <Search size={15} className="absolute left-3 text-[#829283]" />
               <input
                 type="text"
-                className="w-full h-10 pl-9 pr-3 border border-[#E3EBE0] rounded-lg bg-white text-base sm:text-xs text-[#17241B] outline-none focus:border-[#163A2C] focus:ring-2 focus:ring-[#163A2C]/10 transition-all placeholder:text-[#9AAB9B]"
+                disabled={isLoading}
+                className="w-full h-10 pl-9 pr-36 border border-[#E3EBE0] rounded-lg bg-white text-base sm:text-xs text-[#17241B] outline-none focus:border-[#163A2C] focus:ring-2 focus:ring-[#163A2C]/10 transition-all placeholder:text-[#9AAB9B] disabled:bg-[#FAFBF9]"
                 placeholder="Enter 6-digit PIN code (e.g. 110001, 560001, 620015) or City..."
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
               />
+              {isLoading && (
+                <div className="absolute right-3 flex items-center gap-1.5 text-[10.5px] font-semibold text-[#163A2C] bg-[#EBF3E8] border border-[#CCE0C6] px-2.5 py-1 rounded-md shadow-2xs animate-pulse">
+                  <RefreshCw size={11} className="animate-spin text-[#163A2C]" />
+                  <span>Data is coming...</span>
+                </div>
+              )}
             </div>
             <button
               type="submit"
-              className="h-10 px-4 bg-[#163A2C] hover:bg-[#1C4937] text-white rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-[0.99]"
+              disabled={isLoading}
+              className="h-10 px-4 bg-[#163A2C] hover:bg-[#1C4937] text-white rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-[0.99] disabled:opacity-85 disabled:cursor-wait"
             >
-              <span>Search Coverage</span>
-              <ArrowRight size={14} />
+              {isLoading ? (
+                <>
+                  <RefreshCw size={13} className="animate-spin" />
+                  <span>Data is coming...</span>
+                </>
+              ) : (
+                <>
+                  <span>Search Coverage</span>
+                  <ArrowRight size={14} />
+                </>
+              )}
             </button>
           </div>
         </form>
 
+        {/* Real-time Query Progress Bar */}
+        {isLoading && (
+          <div className="w-full bg-[#E5ECE2] h-1 overflow-hidden rounded-full my-2.5 relative">
+            <div className="h-full bg-[#163A2C] w-1/3 rounded-full animate-indeterminate" />
+          </div>
+        )}
+
         {/* Quick select presets */}
         <div className="flex flex-wrap items-center gap-1.5 mb-3">
           <span className="text-[10px] text-[#829283] font-medium mr-0.5">Quick lookups:</span>
-          {QUICK_PINS.map((q) => (
-            <button
-              key={q.pin}
-              type="button"
-              onClick={() => handleQuickSelect(q.pin)}
-              className={`text-[11px] px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
-                searchInput === q.pin
-                  ? "bg-[#163A2C] text-white border-[#163A2C]"
-                  : "bg-[#F8F9F5] text-[#334638] border-[#E3EBE0] hover:bg-white hover:border-[#163A2C]"
-              }`}
-            >
-              <span className="font-mono font-semibold">{q.pin}</span>
-              <span className="text-[9.5px] ml-1 opacity-75">({q.label})</span>
-            </button>
-          ))}
+          {QUICK_PINS.map((q) => {
+            const isThisLoading = isLoading && searchInput === q.pin;
+            return (
+              <button
+                key={q.pin}
+                type="button"
+                disabled={isLoading}
+                onClick={() => handleQuickSelect(q.pin)}
+                className={`text-[11px] px-2 py-0.5 rounded-md border transition-all cursor-pointer disabled:cursor-wait ${
+                  searchInput === q.pin
+                    ? "bg-[#163A2C] text-white border-[#163A2C]"
+                    : "bg-[#F8F9F5] text-[#334638] border-[#E3EBE0] hover:bg-white hover:border-[#163A2C]"
+                }`}
+              >
+                {isThisLoading ? (
+                  <span className="inline-flex items-center gap-1">
+                    <RefreshCw size={9} className="animate-spin text-white" />
+                    <span className="font-mono font-semibold">{q.pin}</span>
+                  </span>
+                ) : (
+                  <>
+                    <span className="font-mono font-semibold">{q.pin}</span>
+                    <span className="text-[9.5px] ml-1 opacity-75">({q.label})</span>
+                  </>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         <div className="flex items-center justify-between text-[11px] text-[#829283] pt-2 border-t border-[#F0F4ED]">
@@ -857,8 +894,9 @@ export const PinCodeSearchView: React.FC = () => {
           </div>
           <button
             type="button"
+            disabled={isLoading}
             onClick={() => setSelectedLenderFilter("All")}
-            className={`text-[11px] px-2.5 py-0.5 rounded-full shrink-0 font-medium transition-all cursor-pointer ${
+            className={`text-[11px] px-2.5 py-0.5 rounded-full shrink-0 font-medium transition-all cursor-pointer disabled:opacity-60 ${
               selectedLenderFilter === "All"
                 ? "bg-[#163A2C] text-white"
                 : "bg-[#F1F5EE] text-[#455A49] hover:bg-[#E3EBE0]"
@@ -870,8 +908,9 @@ export const PinCodeSearchView: React.FC = () => {
             <button
               key={lender}
               type="button"
+              disabled={isLoading}
               onClick={() => setSelectedLenderFilter(lender)}
-              className={`text-[11px] px-2.5 py-0.5 rounded-full shrink-0 font-medium transition-all cursor-pointer ${
+              className={`text-[11px] px-2.5 py-0.5 rounded-full shrink-0 font-medium transition-all cursor-pointer disabled:opacity-60 ${
                 selectedLenderFilter === lender
                   ? "bg-[#163A2C] text-white"
                   : "bg-[#F1F5EE] text-[#455A49] hover:bg-[#E3EBE0]"
@@ -885,14 +924,53 @@ export const PinCodeSearchView: React.FC = () => {
 
       {/* Results View */}
       {isLoading ? (
-        <div className="bg-white rounded-xl p-8 text-center border border-[#E3EBE0] shadow-xs">
-          <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-[#EBF3E8] text-[#163A2C] mb-3">
-            <RefreshCw size={18} className="animate-spin text-[#163A2C]" />
+        <div className="bg-white rounded-2xl p-6 sm:p-10 text-center border border-[#E3EBE0] shadow-xs animate-fade-in">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[#EBF3E8] text-[#163A2C] mb-3 shadow-2xs">
+            <RefreshCw size={20} className="animate-spin text-[#163A2C]" />
           </div>
-          <h3 className="text-sm font-semibold text-[#17241B] mb-0.5">Querying MongoDB Index...</h3>
-          <p className="text-[11px] text-[#829283]">
-            Cross-referencing 12 lenders across 187,457 branch serviceability records.
+          <div className="flex items-center justify-center mb-1.5">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EBF3E8] border border-[#CCE0C6] text-[#163A2C] text-xs font-semibold">
+              <span className="w-2 h-2 rounded-full bg-[#196D29] animate-ping" />
+              <span>Data is coming...</span>
+            </span>
+          </div>
+          <h3 className="text-base font-bold text-[#17241B] mb-0.5">
+            Querying MongoDB Index...
+          </h3>
+          <p className="text-xs text-[#576558] max-w-md mx-auto mb-6">
+            Cross-referencing 12 lenders across 187,457 branch serviceability records for &quot;{searchInput || "India PIN Code Master"}&quot;.
           </p>
+
+          {/* Skeleton Preview Cards to give immediate visual feedback that data is loading */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-4xl mx-auto text-left">
+            {[1, 2].map((s) => (
+              <div
+                key={s}
+                className="border border-[#E3EBE0] rounded-xl p-4 bg-[#FAFBF9] space-y-3 animate-pulse"
+              >
+                <div className="flex items-center justify-between pb-2 border-b border-[#ECEFE9]">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-16 h-10 bg-[#E2EAE0] rounded-lg" />
+                    <div className="space-y-1">
+                      <div className="w-24 h-4 bg-[#E2EAE0] rounded" />
+                      <div className="w-36 h-3 bg-[#EBF0E9] rounded" />
+                    </div>
+                  </div>
+                  <div className="w-24 h-6 bg-[#E2EAE0] rounded-lg" />
+                </div>
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <div className="h-16 bg-white border border-[#E3EBE0] rounded-lg p-2 space-y-1.5">
+                    <div className="w-16 h-3 bg-[#E2EAE0] rounded" />
+                    <div className="w-24 h-2 bg-[#EBF0E9] rounded" />
+                  </div>
+                  <div className="h-16 bg-white border border-[#E3EBE0] rounded-lg p-2 space-y-1.5">
+                    <div className="w-16 h-3 bg-[#E2EAE0] rounded" />
+                    <div className="w-24 h-2 bg-[#EBF0E9] rounded" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       ) : hasSearched && results.length > 0 ? (
         <div className="flex flex-col gap-4">
@@ -1120,7 +1198,16 @@ export const PinCodeSearchView: React.FC = () => {
                 </button>
 
                 <div className="px-3 py-1 bg-white border border-[#E3EBE0] rounded-lg text-xs font-mono text-[#576558] shadow-2xs">
-                  Page <strong className="text-[#17241B]">{currentPage}</strong> / {totalPages}
+                  {isLoading ? (
+                    <span className="flex items-center gap-1.5 text-[#163A2C] font-semibold">
+                      <RefreshCw size={11} className="animate-spin text-[#163A2C]" />
+                      <span>Data is coming...</span>
+                    </span>
+                  ) : (
+                    <span>
+                      Page <strong className="text-[#17241B]">{currentPage}</strong> / {totalPages}
+                    </span>
+                  )}
                 </div>
 
                 <button

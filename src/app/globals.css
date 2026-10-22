@@ -116,6 +116,12 @@ input, select, textarea {
   50% { opacity: 0.4; }
 }
 
+@keyframes indeterminate {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(100%); }
+  100% { transform: translateX(300%); }
+}
+
 .animate-fade-in {
   animation: fadeIn 0.2s ease-out forwards;
 }
@@ -126,6 +132,10 @@ input, select, textarea {
 
 .animate-scale-up {
   animation: scaleUp 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-indeterminate {
+  animation: indeterminate 1.4s infinite cubic-bezier(0.65, 0.815, 0.735, 0.395);
 }
 
 /* App Shell Layout - Fixed Viewport Shell */

@@ -688,12 +688,19 @@ export const CompanySearchView: React.FC = () => {
               <Search size={17} className="absolute left-3.5 text-[#829283]" />
               <input
                 type="text"
-                className="w-full h-11 pl-10 pr-9 border border-[#E3EBE0] rounded-xl bg-[#FAFBF9] text-base sm:text-sm text-[#17241B] outline-none focus:border-[#163A2C] focus:bg-white focus:ring-2 focus:ring-[#163A2C]/10 transition-all placeholder:text-[#9AAB9B]"
+                disabled={isLoading}
+                className="w-full h-11 pl-10 pr-36 border border-[#E3EBE0] rounded-xl bg-[#FAFBF9] text-base sm:text-sm text-[#17241B] outline-none focus:border-[#163A2C] focus:bg-white focus:ring-2 focus:ring-[#163A2C]/10 transition-all placeholder:text-[#9AAB9B] disabled:bg-[#FAFBF9]"
                 placeholder="Search company by name (e.g. Tata, Infosys, Reliance, Wipro, Apollo, HCL, L&T)..."
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
               />
-              {searchInput && (
+              {isLoading && (
+                <div className="absolute right-10 flex items-center gap-1.5 text-[11px] font-semibold text-[#163A2C] bg-[#EBF3E8] border border-[#CCE0C6] px-2.5 py-1 rounded-md shadow-2xs animate-pulse">
+                  <RefreshCw size={11} className="animate-spin text-[#163A2C]" />
+                  <span>Data is coming...</span>
+                </div>
+              )}
+              {searchInput && !isLoading && (
                 <button
                   type="button"
                   onClick={handleClearSearch}
@@ -706,13 +713,30 @@ export const CompanySearchView: React.FC = () => {
             </div>
             <button
               type="submit"
-              className="h-11 px-5 bg-[#163A2C] hover:bg-[#102B21] text-white rounded-xl text-xs sm:text-sm font-semibold inline-flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs active:scale-[0.99] shrink-0"
+              disabled={isLoading}
+              className="h-11 px-5 bg-[#163A2C] hover:bg-[#102B21] text-white rounded-xl text-xs sm:text-sm font-semibold inline-flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs active:scale-[0.99] shrink-0 disabled:opacity-85 disabled:cursor-wait"
             >
-              <span>Search Database</span>
-              <ArrowRight size={15} />
+              {isLoading ? (
+                <>
+                  <RefreshCw size={14} className="animate-spin" />
+                  <span>Data is coming...</span>
+                </>
+              ) : (
+                <>
+                  <span>Search Database</span>
+                  <ArrowRight size={15} />
+                </>
+              )}
             </button>
           </div>
         </form>
+
+        {/* Real-time Query Progress Bar */}
+        {isLoading && (
+          <div className="w-full bg-[#E5ECE2] h-1 overflow-hidden rounded-full my-2.5 relative">
+            <div className="h-full bg-[#163A2C] w-1/3 rounded-full animate-indeterminate" />
+          </div>
+        )}
 
         {/* Category Filter Chips Bar */}
         <div className="flex items-center gap-1.5 overflow-x-auto pt-1 pb-0.5 scrollbar-none">
@@ -726,8 +750,9 @@ export const CompanySearchView: React.FC = () => {
               <button
                 key={cat}
                 type="button"
+                disabled={isLoading}
                 onClick={() => handleCategoryChange(cat)}
-                className={`text-xs px-3 py-1 rounded-full shrink-0 font-medium transition-all cursor-pointer ${
+                className={`text-xs px-3 py-1 rounded-full shrink-0 font-medium transition-all cursor-pointer disabled:opacity-60 ${
                   isSelected
                     ? "bg-[#163A2C] text-white shadow-2xs font-semibold"
                     : "bg-[#F1F5EE] text-[#425946] hover:bg-[#E3EDE0]"
@@ -742,16 +767,44 @@ export const CompanySearchView: React.FC = () => {
 
       {/* Results Table Section */}
       {isLoading ? (
-        <div className="bg-white rounded-2xl p-12 text-center border border-[#E3EBE0] shadow-xs">
-          <div className="w-10 h-10 rounded-full bg-[#EBF3E8] text-[#163A2C] flex items-center justify-center mx-auto mb-3 animate-pulse">
-            <Building2 size={20} />
+        <div className="bg-white rounded-2xl p-10 text-center border border-[#E3EBE0] shadow-xs animate-fade-in space-y-4">
+          <div className="w-12 h-12 rounded-full bg-[#EBF3E8] text-[#163A2C] flex items-center justify-center mx-auto shadow-2xs">
+            <RefreshCw size={22} className="animate-spin text-[#163A2C]" />
           </div>
-          <h3 className="text-sm font-semibold text-[#17241B] mb-1">
+          <div className="flex items-center justify-center">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EBF3E8] border border-[#CCE0C6] text-[#163A2C] text-xs font-semibold">
+              <span className="w-2 h-2 rounded-full bg-[#196D29] animate-ping" />
+              <span>Data is coming...</span>
+            </span>
+          </div>
+          <h3 className="text-base font-bold text-[#17241B] mb-0.5">
             Querying MongoDB Company Master...
           </h3>
-          <p className="text-xs text-[#829283]">
-            Cross-referencing category tiers and multiplier caps across 343k+ employers.
+          <p className="text-xs text-[#576558] max-w-md mx-auto mb-6">
+            Cross-referencing category tiers and multiplier caps across 343,169 corporate employers.
           </p>
+
+          {/* Skeleton Table Rows */}
+          <div className="border border-[#E3EBE0] rounded-xl overflow-hidden max-w-4xl mx-auto text-left opacity-70">
+            <div className="bg-[#F8FAF6] p-3 border-b border-[#ECEFE9] flex justify-between">
+              <div className="h-4 w-32 bg-[#E2EAE0] rounded animate-pulse" />
+              <div className="h-4 w-20 bg-[#E2EAE0] rounded animate-pulse" />
+            </div>
+            {[1, 2, 3].map((row) => (
+              <div key={row} className="p-3.5 border-b border-[#ECEFE9] flex items-center justify-between gap-4 animate-pulse bg-white">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-[#E2EAE0]" />
+                  <div className="space-y-1">
+                    <div className="w-36 h-4 bg-[#E2EAE0] rounded" />
+                    <div className="w-24 h-2.5 bg-[#EBF0E9] rounded" />
+                  </div>
+                </div>
+                <div className="w-20 h-5 bg-[#E2EAE0] rounded-full" />
+                <div className="w-28 h-5 bg-[#EBF0E9] rounded hidden sm:block" />
+                <div className="w-16 h-8 bg-[#E2EAE0] rounded-lg" />
+              </div>
+            ))}
+          </div>
         </div>
       ) : companies.length > 0 ? (
         <div className="bg-white border border-[#E3EBE0] rounded-2xl overflow-hidden shadow-xs">
