@@ -17,6 +17,7 @@ import {
   Layers,
 } from "lucide-react";
 import { useWorkspaceStore } from "@/store/useWorkspaceStore";
+import { useAuthStore } from "@/store/useAuthStore";
 
 const TSV_SOURCE_URL = "pin_download.tsv";
 
@@ -37,6 +38,9 @@ const LENDER_COUNTS_DISPLAY = [
 
 export const DataUpdateView: React.FC = () => {
   const { setActiveTab } = useWorkspaceStore();
+  const { user, token } = useAuthStore();
+  const isSuperadmin = user?.role === "superadmin";
+
   const searchParams = useSearchParams();
   const initialType = searchParams.get("type") === "companies" ? "companies" : "pincodes";
 
@@ -109,13 +113,21 @@ export const DataUpdateView: React.FC = () => {
   }, []);
 
   const handleSyncTsvMaster = async () => {
+    if (!isSuperadmin) {
+      setErrorMessage("Access denied. Only Superadmin can sync the master PIN database.");
+      return;
+    }
     setIsSyncingTsv(true);
     setStatusMessage("");
     setErrorMessage("");
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
       const res = await fetch("/api/admin/sync-pins", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ url: customTsvUrl }),
       });
       const data = await res.json();
@@ -195,12 +207,21 @@ export const DataUpdateView: React.FC = () => {
 
   const handleAddPin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isSuperadmin) {
+      setErrorMessage("Access denied. Only Superadmin can add new PIN codes.");
+      return;
+    }
     if (!newPinCode.trim() || !newPinArea.trim()) return;
 
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
       const res = await fetch("/api/pincodes", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           pincode: newPinCode.trim(),
           area: newPinArea.trim(),
@@ -213,7 +234,7 @@ export const DataUpdateView: React.FC = () => {
         }),
       });
       const data = await res.json();
-      if (res.ok) {
+      if (res.ok && data.success) {
         setStatusMessage(`PIN Code "${newPinCode}" added successfully.`);
         setNewPinCode("");
         setNewPinArea("");
