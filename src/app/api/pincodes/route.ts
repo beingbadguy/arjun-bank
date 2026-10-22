@@ -23,9 +23,11 @@ export async function GET(request: Request) {
 
     await connectToDatabase();
 
-    const totalCount = await PinCode.estimatedDocumentCount();
+    const totalCount = await PinCode.countDocuments({ isDeleted: { $ne: true } });
 
-    const filter: any = {};
+    const filter: any = {
+      isDeleted: { $ne: true },
+    };
 
     if (pin.trim()) {
       const cleanPin = pin.trim();
@@ -56,6 +58,7 @@ export async function GET(request: Request) {
     }
 
     const skip = (page - 1) * limit;
+    const hasFilter = Boolean(pin.trim() || query.trim() || state.trim() || lender.trim());
 
     const [pincodes, matchedCount] = await Promise.all([
       PinCode.find(filter)
@@ -63,7 +66,7 @@ export async function GET(request: Request) {
         .skip(skip)
         .limit(limit)
         .lean(),
-      Object.keys(filter).length > 0 ? PinCode.countDocuments(filter) : totalCount,
+      hasFilter ? PinCode.countDocuments(filter) : totalCount,
     ]);
 
     return NextResponse.json({
@@ -129,12 +132,40 @@ export async function POST(request: Request) {
       );
     }
 
-    const existing = await PinCode.findOne({ pincode });
+    const existing = await PinCode.findOne({ pincode, isDeleted: { $ne: true } });
     if (existing) {
       return NextResponse.json(
         { error: `PIN code "${pincode}" already exists in the database. Please edit it instead.` },
         { status: 409 }
       );
+    }
+
+    const softDeleted = await PinCode.findOne({ pincode, isDeleted: true });
+    if (softDeleted) {
+      softDeleted.area = area;
+      softDeleted.city = city;
+      softDeleted.state = state;
+      softDeleted.isDeleted = false;
+      softDeleted.deletedAt = null;
+      softDeleted.deletedBy = "";
+      if (Array.isArray(body.lenders) && body.lenders.length > 0) {
+        softDeleted.lenders = body.lenders.map((l: any) => ({
+          lender: (l.lender || "Other Lender").toString().trim(),
+          isServiceable: l.isServiceable !== false,
+          branchName: (l.branchName || `${city} Main`).toString().trim(),
+          category: (l.category || "Standard").toString().trim(),
+          products: Array.isArray(l.products) && l.products.length > 0
+            ? l.products
+            : ["Personal Loan", "Home Loan", "LAP"],
+          tatDays: Number(l.tatDays) || 2,
+        }));
+      }
+      await softDeleted.save();
+      return NextResponse.json({
+        success: true,
+        message: `PIN code "${pincode}" restored and updated successfully`,
+        pincode: softDeleted,
+      });
     }
 
     let lenders = [];
@@ -320,20 +351,32 @@ export async function DELETE(request: Request) {
 
     await connectToDatabase();
 
-    const deleted = id
-      ? await PinCode.findByIdAndDelete(id)
-      : await PinCode.findOneAndDelete({ pincode: pin?.trim() });
+    const query = id
+      ? { _id: id, isDeleted: { $ne: true } }
+      : { pincode: pin?.trim(), isDeleted: { $ne: true } };
+
+    const deleted = await PinCode.findOneAndUpdate(
+      query,
+      {
+        $set: {
+          isDeleted: true,
+          deletedAt: new Date(),
+          deletedBy: auth.payload?.email || "superadmin",
+        },
+      },
+      { new: true }
+    );
 
     if (!deleted) {
       return NextResponse.json(
-        { error: "PIN code record not found or already deleted" },
+        { error: "PIN code record not found or already in recycle bin" },
         { status: 404 }
       );
     }
 
     return NextResponse.json({
       success: true,
-      message: `PIN code "${deleted.pincode}" (${deleted.city}, ${deleted.state}) deleted successfully`,
+      message: `PIN code "${deleted.pincode}" (${deleted.city}, ${deleted.state}) moved to recycle bin`,
       deletedId: deleted._id,
       pincode: deleted.pincode,
     });

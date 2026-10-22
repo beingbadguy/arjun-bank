@@ -278,7 +278,9 @@ export async function GET(request: Request) {
     const bank = (searchParams.get("bank") || "ALL").trim();
 
     // Build MongoDB Filter Query
-    const query: any = {};
+    const query: any = {
+      isDeleted: { $ne: true },
+    };
 
     if (status && status !== "ALL") {
       query.status = status;
@@ -316,8 +318,8 @@ export async function GET(request: Request) {
 
     const totalPages = isAll ? 1 : Math.max(1, Math.ceil(totalMatching / limit));
 
-    // 3. Database Statistics across all records in DB
-    const allCasesForStats = await CaseEntry.find({}, "status approvedAmount bankName").lean();
+    // 3. Database Statistics across all active records in DB
+    const allCasesForStats = await CaseEntry.find({ isDeleted: { $ne: true } }, "status approvedAmount bankName").lean();
     const totalAll = allCasesForStats.length;
     const disbursed = allCasesForStats.filter((c: any) => c.status === "DISBURSED");
     const login = allCasesForStats.filter((c: any) => c.status === "LOGIN");

@@ -66,7 +66,9 @@ export async function GET(request: Request) {
     const search = searchParams.get("search") || "";
     const bank = searchParams.get("bank") || "all";
 
-    const filter: Record<string, any> = {};
+    const filter: Record<string, any> = {
+      isDeleted: { $ne: true },
+    };
 
     if (bank && bank !== "all") {
       filter.bankName = { $regex: new RegExp(bank, "i") };
@@ -250,11 +252,20 @@ export async function DELETE(request: Request) {
     }
 
     if (deleteAll || id === "all") {
-      const deleteResult = await Banker.deleteMany({});
+      const deleteResult = await Banker.updateMany(
+        { isDeleted: { $ne: true } },
+        {
+          $set: {
+            isDeleted: true,
+            deletedAt: new Date(),
+            deletedBy: auth.payload?.email || "superadmin",
+          },
+        }
+      );
       return NextResponse.json({
         success: true,
-        message: `Successfully deleted all ${deleteResult.deletedCount} banker records.`,
-        deletedCount: deleteResult.deletedCount,
+        message: `Successfully moved ${deleteResult.modifiedCount} banker records to recycle bin.`,
+        deletedCount: deleteResult.modifiedCount,
       });
     }
 
@@ -265,17 +276,27 @@ export async function DELETE(request: Request) {
       );
     }
 
-    const deleted = await Banker.findByIdAndDelete(id);
+    const deleted = await Banker.findOneAndUpdate(
+      { _id: id, isDeleted: { $ne: true } },
+      {
+        $set: {
+          isDeleted: true,
+          deletedAt: new Date(),
+          deletedBy: auth.payload?.email || "superadmin",
+        },
+      },
+      { new: true }
+    );
     if (!deleted) {
       return NextResponse.json(
-        { error: "Banker record not found" },
+        { error: "Banker record not found or already in recycle bin" },
         { status: 404 }
       );
     }
 
     return NextResponse.json({
       success: true,
-      message: `Banker record for "${deleted.name}" has been deleted.`,
+      message: `Banker record for "${deleted.name}" moved to recycle bin.`,
     });
   } catch (error: any) {
     return NextResponse.json(

@@ -12,6 +12,9 @@ export interface IBanker extends Document {
   isVerified: boolean;
   isDemo: boolean;
   notes?: string;
+  isDeleted?: boolean;
+  deletedAt?: Date | null;
+  deletedBy?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -70,6 +73,19 @@ const BankerSchema: Schema<IBanker> = new Schema(
       index: true,
     },
     notes: {
+      type: String,
+      default: "",
+    },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    deletedBy: {
       type: String,
       default: "",
     },

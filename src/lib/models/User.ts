@@ -8,6 +8,9 @@ export interface IUser extends Document {
   status: "active" | "inactive";
   createdBy: string;
   lastLogin?: Date;
+  isDeleted?: boolean;
+  deletedAt?: Date | null;
+  deletedBy?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -46,6 +49,19 @@ const UserSchema: Schema<IUser> = new Schema(
     },
     lastLogin: {
       type: Date,
+    },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    deletedBy: {
+      type: String,
+      default: "",
     },
   },
   {

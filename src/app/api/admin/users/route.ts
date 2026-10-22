@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     }
 
     await connectToDatabase();
-    const users = await User.find()
+    const users = await User.find({ isDeleted: { $ne: true } })
       .select("-password")
       .sort({ createdAt: -1 });
 

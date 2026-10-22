@@ -13,6 +13,9 @@ export interface ICompany extends Document {
   }[];
   minSalary?: number;
   remarks?: string;
+  isDeleted?: boolean;
+  deletedAt?: Date | null;
+  deletedBy?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -51,6 +54,19 @@ const CompanySchema: Schema<ICompany> = new Schema(
       default: 25000,
     },
     remarks: {
+      type: String,
+      default: "",
+    },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    deletedBy: {
       type: String,
       default: "",
     },

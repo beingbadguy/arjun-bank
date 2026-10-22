@@ -13,6 +13,9 @@ export interface IPinCode extends Document {
     products: string[];
     tatDays?: number;
   }[];
+  isDeleted?: boolean;
+  deletedAt?: Date | null;
+  deletedBy?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -50,6 +53,19 @@ const PinCodeSchema: Schema<IPinCode> = new Schema(
         tatDays: { type: Number, default: 3 },
       },
     ],
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    deletedBy: {
+      type: String,
+      default: "",
+    },
   },
   {
     timestamps: true,

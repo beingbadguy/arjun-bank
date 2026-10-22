@@ -37,7 +37,7 @@ export async function GET(
     const { id } = await params;
     await connectToDatabase();
 
-    const caseItem = await CaseEntry.findById(id).lean();
+    const caseItem = await CaseEntry.findOne({ _id: id, isDeleted: { $ne: true } }).lean();
     if (!caseItem) {
       return NextResponse.json(
         { error: "Case entry not found." },
@@ -130,17 +130,27 @@ export async function DELETE(
 
     await connectToDatabase();
 
-    const deleted = await CaseEntry.findByIdAndDelete(id);
+    const deleted = await CaseEntry.findOneAndUpdate(
+      { _id: id, isDeleted: { $ne: true } },
+      {
+        $set: {
+          isDeleted: true,
+          deletedAt: new Date(),
+          deletedBy: authCheck.payload?.email || "superadmin",
+        },
+      },
+      { new: true }
+    );
     if (!deleted) {
       return NextResponse.json(
-        { error: "Case entry not found." },
+        { error: "Case entry not found or already in recycle bin." },
         { status: 404 }
       );
     }
 
     return NextResponse.json({
       success: true,
-      message: "Case entry deleted successfully",
+      message: "Case entry moved to recycle bin successfully",
     });
   } catch (error: any) {
     return NextResponse.json(

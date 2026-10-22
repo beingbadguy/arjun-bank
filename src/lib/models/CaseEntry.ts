@@ -15,6 +15,9 @@ export interface ICaseEntry extends Document {
   approvedAmount?: number;
   lastUpdateDate?: Date;
   createdBy?: string;
+  isDeleted?: boolean;
+  deletedAt?: Date | null;
+  deletedBy?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -92,6 +95,19 @@ const CaseEntrySchema: Schema<ICaseEntry> = new Schema(
     createdBy: {
       type: String,
       default: "superadmin",
+    },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    deletedBy: {
+      type: String,
+      default: "",
     },
   },
   {

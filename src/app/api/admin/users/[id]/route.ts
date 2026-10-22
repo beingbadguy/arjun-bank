@@ -107,15 +107,25 @@ export async function DELETE(
     }
 
     await connectToDatabase();
-    const deleted = await User.findByIdAndDelete(id);
+    const deleted = await User.findOneAndUpdate(
+      { _id: id, isDeleted: { $ne: true } },
+      {
+        $set: {
+          isDeleted: true,
+          deletedAt: new Date(),
+          deletedBy: authCheck.payload?.email || "superadmin",
+        },
+      },
+      { new: true }
+    );
 
     if (!deleted) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      return NextResponse.json({ error: "User not found or already deleted" }, { status: 404 });
     }
 
     return NextResponse.json({
       success: true,
-      message: `User ${deleted.name} (${deleted.email}) deleted successfully.`,
+      message: `User ${deleted.name} (${deleted.email}) moved to recycle bin successfully.`,
     });
   } catch (error: any) {
     return NextResponse.json(

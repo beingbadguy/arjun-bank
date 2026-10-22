@@ -22,7 +22,9 @@ export async function GET(request: Request) {
 
     await connectToDatabase();
 
-    const filter: any = {};
+    const filter: any = {
+      isDeleted: { $ne: true },
+    };
 
     if (query.trim()) {
       const clean = query.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -38,8 +40,8 @@ export async function GET(request: Request) {
     }
 
     const skip = (page - 1) * limit;
-    const totalCount = await Company.estimatedDocumentCount();
-    const hasFilter = Object.keys(filter).length > 0;
+    const totalCount = await Company.countDocuments({ isDeleted: { $ne: true } });
+    const hasFilter = Boolean(query.trim() || (category && category.toLowerCase() !== "all") || (lender && lender.toLowerCase() !== "all"));
 
     const [companies, matchedCount] = await Promise.all([
       Company.find(filter).sort({ name: 1 }).skip(skip).limit(limit).lean(),
@@ -207,15 +209,28 @@ export async function DELETE(request: Request) {
     }
 
     await connectToDatabase();
-    const deleted = await Company.findByIdAndDelete(id);
+    const deleted = await Company.findOneAndUpdate(
+      { _id: id, isDeleted: { $ne: true } },
+      {
+        $set: {
+          isDeleted: true,
+          deletedAt: new Date(),
+          deletedBy: auth.payload?.email || "superadmin",
+        },
+      },
+      { new: true }
+    );
 
     if (!deleted) {
-      return NextResponse.json({ error: "Company not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Company not found or already in recycle bin" },
+        { status: 404 }
+      );
     }
 
     return NextResponse.json({
       success: true,
-      message: `Company "${deleted.name}" deleted successfully.`,
+      message: `Company "${deleted.name}" moved to recycle bin.`,
       deletedId: id,
     });
   } catch (error: any) {
