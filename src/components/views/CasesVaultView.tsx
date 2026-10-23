@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useWorkspaceStore } from "@/store/useWorkspaceStore";
+import { clientCache } from "@/lib/clientCache";
 
 export interface CaseRecord {
   _id: string;
@@ -203,21 +204,38 @@ export const CasesVaultView: React.FC = () => {
     status = selectedStatus,
     bank = selectedBank
   ) => {
+    const params = new URLSearchParams();
+    params.set("page", String(page));
+    params.set("limit", String(limit));
+    if (search.trim()) params.set("search", search.trim());
+    if (status && status !== "ALL") params.set("status", status);
+    if (bank && bank !== "ALL") params.set("bank", bank);
+
+    const url = `/api/admin/cases?${params.toString()}`;
+
+    // 1. Instant 0ms cache hit
+    const cached = clientCache.get<any>(url);
+    if (cached && cached.success) {
+      setCases(cached.cases || []);
+      if (cached.pagination) {
+        setTotalPages(cached.pagination.totalPages || 1);
+        setTotalMatching(cached.pagination.total || 0);
+      }
+      if (cached.stats) {
+        setServerStats(cached.stats);
+      }
+      if (cached.uniqueBanks) {
+        setAvailableBanks(cached.uniqueBanks);
+      }
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams();
-      params.set("page", String(page));
-      params.set("limit", String(limit));
-      if (search.trim()) params.set("search", search.trim());
-      if (status && status !== "ALL") params.set("status", status);
-      if (bank && bank !== "ALL") params.set("bank", bank);
-
-      const res = await fetch(`/api/admin/cases?${params.toString()}`);
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to load cases from database");
-      }
+      const signal = clientCache.getAbortSignal("cases-vault");
+      const data = await clientCache.fetchWithCache<any>(url, { signal }, 120);
       setCases(data.cases || []);
       if (data.pagination) {
         setTotalPages(data.pagination.totalPages || 1);
@@ -229,8 +247,17 @@ export const CasesVaultView: React.FC = () => {
       if (data.uniqueBanks) {
         setAvailableBanks(data.uniqueBanks);
       }
+
+      // Background prefetch next page
+      if (page < (data.pagination?.totalPages || 1)) {
+        const nextParams = new URLSearchParams(params);
+        nextParams.set("page", String(page + 1));
+        clientCache.fetchWithCache(`/api/admin/cases?${nextParams.toString()}`, {}, 120).catch(() => {});
+      }
     } catch (err: any) {
-      setError(err.message || "Failed to fetch private cases from database");
+      if (err?.name !== "AbortError") {
+        setError(err.message || "Failed to fetch private cases from database");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -330,6 +357,7 @@ export const CasesVaultView: React.FC = () => {
         throw new Error(data.error || "Failed to save case entry");
       }
 
+      clientCache.invalidate("/api/admin/cases");
       setSuccessMessage(
         editingCase
           ? "Case entry updated successfully!"
@@ -357,6 +385,7 @@ export const CasesVaultView: React.FC = () => {
       if (!res.ok) {
         throw new Error(data.error || "Failed to delete case");
       }
+      clientCache.invalidate("/api/admin/cases");
       setSuccessMessage("Case deleted successfully from vault.");
       setTimeout(() => setSuccessMessage(null), 3000);
       setDeletingCaseId(null);
@@ -379,6 +408,7 @@ export const CasesVaultView: React.FC = () => {
         body: JSON.stringify({ status: newStatus }),
       });
       if (res.ok) {
+        clientCache.invalidate("/api/admin/cases");
         setCases((prev) =>
           prev.map((c) => (c._id === id ? { ...c, status: newStatus } : c))
         );

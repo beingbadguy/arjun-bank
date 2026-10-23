@@ -115,6 +115,12 @@ const CaseEntrySchema: Schema<ICaseEntry> = new Schema(
   }
 );
 
+// High-performance compound indexes for private cases vault
+CaseEntrySchema.index({ isDeleted: 1, createdAt: -1 });
+CaseEntrySchema.index({ isDeleted: 1, status: 1, createdAt: -1 });
+CaseEntrySchema.index({ isDeleted: 1, bankName: 1, createdAt: -1 });
+CaseEntrySchema.index({ isDeleted: 1, customerId: 1 });
+
 // Prevent mongoose model recompilation in Next.js hot reload
 const CaseEntry: Model<ICaseEntry> =
   mongoose.models.CaseEntry ||

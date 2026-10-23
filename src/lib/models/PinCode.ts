@@ -72,6 +72,13 @@ const PinCodeSchema: Schema<IPinCode> = new Schema(
   }
 );
 
+// High-performance compound indexes for search & filtering
+PinCodeSchema.index({ isDeleted: 1, pincode: 1 });
+PinCodeSchema.index({ isDeleted: 1, city: 1, pincode: 1 });
+PinCodeSchema.index({ isDeleted: 1, state: 1 });
+PinCodeSchema.index({ isDeleted: 1, "lenders.lender": 1 });
+PinCodeSchema.index({ pincode: "text", city: "text", area: "text", state: "text" });
+
 const PinCode: Model<IPinCode> =
   mongoose.models.PinCode || mongoose.model<IPinCode>("PinCode", PinCodeSchema);
 

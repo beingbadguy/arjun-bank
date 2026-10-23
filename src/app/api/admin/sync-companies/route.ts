@@ -50,6 +50,9 @@ export async function POST(request: Request) {
     } catch {}
 
     const result = await syncCompanyDataFromTsv(url);
+    const { serverCache } = await import("@/lib/cache");
+    serverCache.invalidateGroup("companies");
+    serverCache.invalidateGroup("recycle");
     return NextResponse.json(result);
   } catch (error: any) {
     return NextResponse.json(

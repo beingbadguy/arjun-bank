@@ -25,14 +25,29 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: authCheck.error }, { status: authCheck.status });
     }
 
+    const { serverCache } = await import("@/lib/cache");
+    const cachedUsers = serverCache.get("users:list");
+    if (cachedUsers) {
+      return NextResponse.json(cachedUsers, {
+        headers: { "X-Cache": "HIT" },
+      });
+    }
+
     await connectToDatabase();
     const users = await User.find({ isDeleted: { $ne: true } })
       .select("-password")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
-    return NextResponse.json({
+    const responsePayload = {
       success: true,
       users,
+    };
+
+    serverCache.set("users:list", responsePayload, 60, "users");
+
+    return NextResponse.json(responsePayload, {
+      headers: { "X-Cache": "MISS" },
     });
   } catch (error: any) {
     return NextResponse.json(
@@ -92,6 +107,9 @@ export async function POST(request: Request) {
       status: "active",
       createdBy: authCheck.payload?.email || "superadmin",
     });
+
+    const { serverCache } = await import("@/lib/cache");
+    serverCache.invalidateGroup("users");
 
     return NextResponse.json({
       success: true,

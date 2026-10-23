@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import Banker from "@/lib/models/Banker";
 import { requireAdminAuth } from "@/lib/auth";
+import { serverCache, buildCacheKey } from "@/lib/cache";
 
 const INITIAL_DEMO_BANKERS = [
   {
@@ -60,11 +61,22 @@ const INITIAL_DEMO_BANKERS = [
 
 export async function GET(request: Request) {
   try {
-    await connectToDatabase();
-
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") || "";
     const bank = searchParams.get("bank") || "all";
+
+    const cacheKey = buildCacheKey("bankers:query", { search, bank });
+    const cachedData = serverCache.get(cacheKey);
+    if (cachedData) {
+      return NextResponse.json(cachedData, {
+        headers: {
+          "X-Cache": "HIT",
+          "Cache-Control": "private, max-age=60, stale-while-revalidate=120",
+        },
+      });
+    }
+
+    await connectToDatabase();
 
     const filter: Record<string, any> = {
       isDeleted: { $ne: true },
@@ -92,10 +104,19 @@ export async function GET(request: Request) {
       .sort({ isDemo: 1, createdAt: -1 })
       .lean();
 
-    return NextResponse.json({
+    const responsePayload = {
       success: true,
       count: bankers.length,
       bankers,
+    };
+
+    serverCache.set(cacheKey, responsePayload, 300, "bankers");
+
+    return NextResponse.json(responsePayload, {
+      headers: {
+        "X-Cache": "MISS",
+        "Cache-Control": "private, max-age=60, stale-while-revalidate=120",
+      },
     });
   } catch (error: any) {
     return NextResponse.json(
@@ -153,6 +174,9 @@ export async function POST(request: Request) {
       isDemo: false,
       notes: (notes || "").trim(),
     });
+
+    serverCache.invalidateGroup("bankers");
+    serverCache.invalidateGroup("recycle");
 
     return NextResponse.json(
       {
@@ -218,6 +242,9 @@ export async function PUT(request: Request) {
       );
     }
 
+    serverCache.invalidateGroup("bankers");
+    serverCache.invalidateGroup("recycle");
+
     return NextResponse.json({
       success: true,
       message: `Banker record for "${updatedBanker.name}" updated successfully.`,
@@ -262,6 +289,10 @@ export async function DELETE(request: Request) {
           },
         }
       );
+
+      serverCache.invalidateGroup("bankers");
+      serverCache.invalidateGroup("recycle");
+
       return NextResponse.json({
         success: true,
         message: `Successfully moved ${deleteResult.modifiedCount} banker records to recycle bin.`,
@@ -293,6 +324,9 @@ export async function DELETE(request: Request) {
         { status: 404 }
       );
     }
+
+    serverCache.invalidateGroup("bankers");
+    serverCache.invalidateGroup("recycle");
 
     return NextResponse.json({
       success: true,

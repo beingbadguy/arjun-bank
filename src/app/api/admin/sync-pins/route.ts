@@ -55,6 +55,9 @@ export async function POST(request: Request) {
     } catch {}
 
     const result = await syncPinDataFromTsv(url);
+    const { serverCache } = await import("@/lib/cache");
+    serverCache.invalidateGroup("pincodes");
+    serverCache.invalidateGroup("recycle");
     return NextResponse.json(result);
   } catch (error: any) {
     return NextResponse.json(

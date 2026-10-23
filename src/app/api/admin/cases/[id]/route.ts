@@ -98,6 +98,9 @@ export async function PUT(
     existingCase.lastUpdateDate = new Date();
 
     await existingCase.save();
+    const { serverCache } = await import("@/lib/cache");
+    serverCache.invalidateGroup("cases");
+    serverCache.invalidateGroup("recycle");
 
     return NextResponse.json({
       success: true,
@@ -147,6 +150,10 @@ export async function DELETE(
         { status: 404 }
       );
     }
+
+    const { serverCache } = await import("@/lib/cache");
+    serverCache.invalidateGroup("cases");
+    serverCache.invalidateGroup("recycle");
 
     return NextResponse.json({
       success: true,

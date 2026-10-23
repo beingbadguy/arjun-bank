@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import PinCode from "@/lib/models/PinCode";
 import { extractTokenFromRequest, verifyToken, requireAdminAuth } from "@/lib/auth";
+import { serverCache, buildCacheKey } from "@/lib/cache";
 
 export async function GET(request: Request) {
   try {
@@ -21,11 +22,28 @@ export async function GET(request: Request) {
     const limit = Math.min(parseInt(searchParams.get("limit") || "12", 10), 100);
     const page = Math.max(parseInt(searchParams.get("page") || "1", 10), 1);
 
+    const cacheKey = buildCacheKey("pincodes:query", {
+      pin,
+      q: query,
+      state,
+      lender,
+      limit,
+      page,
+    });
+
+    const cachedData = serverCache.get(cacheKey);
+    if (cachedData) {
+      return NextResponse.json(cachedData, {
+        headers: {
+          "X-Cache": "HIT",
+          "Cache-Control": "private, max-age=60, stale-while-revalidate=120",
+        },
+      });
+    }
+
     await connectToDatabase();
 
-    const totalCount = await PinCode.countDocuments({ isDeleted: { $ne: true } });
-
-    const filter: any = {
+    const filter: Record<string, unknown> = {
       isDeleted: { $ne: true },
     };
 
@@ -60,8 +78,17 @@ export async function GET(request: Request) {
     const skip = (page - 1) * limit;
     const hasFilter = Boolean(pin.trim() || query.trim() || state.trim() || lender.trim());
 
+    // Fast cached total pincodes count
+    const totalCount = await serverCache.getOrSet(
+      "pincodes:totalCount",
+      () => PinCode.countDocuments({ isDeleted: { $ne: true } }),
+      600,
+      "pincodes"
+    );
+
     const [pincodes, matchedCount] = await Promise.all([
       PinCode.find(filter)
+        .select("pincode area city state lenders createdAt")
         .sort({ pincode: 1 })
         .skip(skip)
         .limit(limit)
@@ -69,7 +96,7 @@ export async function GET(request: Request) {
       hasFilter ? PinCode.countDocuments(filter) : totalCount,
     ]);
 
-    return NextResponse.json({
+    const responsePayload = {
       success: true,
       pincodes,
       totalCount,
@@ -78,6 +105,15 @@ export async function GET(request: Request) {
       page,
       limit,
       totalPages: Math.ceil(matchedCount / limit),
+    };
+
+    serverCache.set(cacheKey, responsePayload, 600, "pincodes");
+
+    return NextResponse.json(responsePayload, {
+      headers: {
+        "X-Cache": "MISS",
+        "Cache-Control": "private, max-age=60, stale-while-revalidate=120",
+      },
     });
   } catch (error: any) {
     return NextResponse.json(
@@ -106,6 +142,8 @@ export async function POST(request: Request) {
         );
       }
       const created = await PinCode.insertMany(body, { ordered: false });
+      serverCache.invalidateGroup("pincodes");
+      serverCache.invalidateGroup("recycle");
       return NextResponse.json({
         success: true,
         message: `Successfully imported ${created.length} PIN codes`,
@@ -161,6 +199,8 @@ export async function POST(request: Request) {
         }));
       }
       await softDeleted.save();
+      serverCache.invalidateGroup("pincodes");
+      serverCache.invalidateGroup("recycle");
       return NextResponse.json({
         success: true,
         message: `PIN code "${pincode}" restored and updated successfully`,
@@ -208,6 +248,9 @@ export async function POST(request: Request) {
       state,
       lenders,
     });
+
+    serverCache.invalidateGroup("pincodes");
+    serverCache.invalidateGroup("recycle");
 
     return NextResponse.json({
       success: true,
@@ -301,6 +344,8 @@ export async function PUT(request: Request) {
     }
 
     await pinDoc.save();
+    serverCache.invalidateGroup("pincodes");
+    serverCache.invalidateGroup("recycle");
 
     return NextResponse.json({
       success: true,
@@ -373,6 +418,9 @@ export async function DELETE(request: Request) {
         { status: 404 }
       );
     }
+
+    serverCache.invalidateGroup("pincodes");
+    serverCache.invalidateGroup("recycle");
 
     return NextResponse.json({
       success: true,

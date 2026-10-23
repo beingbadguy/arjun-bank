@@ -4,16 +4,28 @@ import Banker from "@/lib/models/Banker";
 import PinCode from "@/lib/models/PinCode";
 import Company from "@/lib/models/Company";
 import CaseEntry from "@/lib/models/CaseEntry";
+import { serverCache, buildCacheKey } from "@/lib/cache";
 
 // GET /api/recycle - Fetch all soft-deleted items across sections
 // Note: Intentionally unlocked as per requirement: "do not lock the /recycle"
 export async function GET(request: Request) {
   try {
-    await connectToDatabase();
-
     const { searchParams } = new URL(request.url);
     const section = (searchParams.get("section") || "all").toLowerCase();
     const search = (searchParams.get("search") || searchParams.get("q") || "").trim().toLowerCase();
+
+    const cacheKey = buildCacheKey("recycle:query", { section, search });
+    const cachedData = serverCache.get(cacheKey);
+    if (cachedData) {
+      return NextResponse.json(cachedData, {
+        headers: {
+          "X-Cache": "HIT",
+          "Cache-Control": "private, max-age=30, stale-while-revalidate=60",
+        },
+      });
+    }
+
+    await connectToDatabase();
 
     // 1. Fetch counts
     const [bankersCount, pincodesCount, companiesCount, casesCount] = await Promise.all([
@@ -137,7 +149,7 @@ export async function GET(request: Request) {
       }
     }
 
-    return NextResponse.json({
+    const responsePayload = {
       success: true,
       counts,
       data: {
@@ -145,6 +157,15 @@ export async function GET(request: Request) {
         pincodes,
         companies,
         cases,
+      },
+    };
+
+    serverCache.set(cacheKey, responsePayload, 120, "recycle");
+
+    return NextResponse.json(responsePayload, {
+      headers: {
+        "X-Cache": "MISS",
+        "Cache-Control": "private, max-age=30, stale-while-revalidate=60",
       },
     });
   } catch (error: any) {
@@ -200,6 +221,9 @@ export async function POST(request: Request) {
         count = res.modifiedCount;
       }
 
+      serverCache.invalidateGroup("recycle");
+      serverCache.invalidateGroup(sec);
+
       return NextResponse.json({
         success: true,
         message: `Successfully restored ${count} item(s) in ${section} back to active database.`,
@@ -237,6 +261,9 @@ export async function POST(request: Request) {
         { status: 404 }
       );
     }
+
+    serverCache.invalidateGroup("recycle");
+    serverCache.invalidateGroup(sec);
 
     return NextResponse.json({
       success: true,

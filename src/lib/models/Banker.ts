@@ -104,6 +104,11 @@ BankerSchema.index({
   designation: "text",
 });
 
+// High-performance compound indexes for sorting and filtering
+BankerSchema.index({ isDeleted: 1, isDemo: 1, createdAt: -1 });
+BankerSchema.index({ isDeleted: 1, bankName: 1 });
+BankerSchema.index({ isDeleted: 1, city: 1 });
+
 const Banker: Model<IBanker> =
   mongoose.models.Banker || mongoose.model<IBanker>("Banker", BankerSchema);
 

@@ -23,6 +23,8 @@ import {
   Info,
 } from "lucide-react";
 
+import { clientCache } from "@/lib/clientCache";
+
 type SectionType = "bankers" | "pincodes" | "companies" | "cases";
 
 interface BankerItem {
@@ -130,18 +132,25 @@ export default function RecycleBinPage() {
     total: 0,
   });
 
-  // Fetch Recycle Bin Data
+  // Fetch Recycle Bin Data with instant client cache
   const fetchData = async () => {
+    const cached = clientCache.get<any>("/api/recycle?section=all");
+    if (cached && cached.success) {
+      setData(cached.data || { bankers: [], pincodes: [], companies: [], cases: [] });
+      setCounts(cached.counts || { bankers: 0, pincodes: 0, companies: 0, cases: 0, total: 0 });
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     setErrorMessage(null);
     try {
-      const res = await fetch(`/api/recycle?section=all`);
-      const json = await res.json();
-      if (res.ok && json.success) {
+      const json = await clientCache.fetchWithCache<any>("/api/recycle?section=all", {}, 60);
+      if (json && json.success) {
         setData(json.data || { bankers: [], pincodes: [], companies: [], cases: [] });
         setCounts(json.counts || { bankers: 0, pincodes: 0, companies: 0, cases: 0, total: 0 });
       } else {
-        setErrorMessage(json.error || "Failed to load recycle bin data.");
+        setErrorMessage(json?.error || "Failed to load recycle bin data.");
       }
     } catch (err: any) {
       setErrorMessage(err.message || "Failed to connect to recycle bin service.");
@@ -241,6 +250,7 @@ export default function RecycleBinPage() {
 
       const resJson = await res.json();
       if (res.ok && resJson.success) {
+        clientCache.clear();
         setStatusMessage(resJson.message || "Record successfully restored to database.");
         // Refresh local data
         await fetchData();

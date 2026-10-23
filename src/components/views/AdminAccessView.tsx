@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useWorkspaceStore } from "@/store/useWorkspaceStore";
+import { clientCache } from "@/lib/clientCache";
 
 interface ManagedUser {
   _id: string;
@@ -64,13 +65,20 @@ export const AdminAccessView: React.FC = () => {
   const hasAccess = isSuperadmin || isAdminPath;
 
   const fetchUsers = async () => {
-    setIsLoading(true);
+    const cached = clientCache.get<{ success: boolean; users: ManagedUser[] }>("/api/admin/users");
+    if (cached?.users) {
+      setUsers(cached.users);
+      setIsLoading(false);
+    } else {
+      setIsLoading(true);
+    }
     setErrorMessage("");
     try {
       const res = await fetch("/api/admin/users");
       const data = await res.json();
       if (res.ok) {
         setUsers(data.users || []);
+        clientCache.set("/api/admin/users", data, 60_000);
       } else {
         setErrorMessage(data.error || "Failed to load user list");
       }
@@ -107,6 +115,7 @@ export const AdminAccessView: React.FC = () => {
 
       const data = await res.json();
       if (res.ok) {
+        clientCache.delete("/api/admin/users");
         setSuccessMessage(`User "${newName}" (${newEmail}) created successfully.`);
         setShowCreateModal(false);
         setNewName("");
@@ -134,6 +143,7 @@ export const AdminAccessView: React.FC = () => {
       });
       const data = await res.json();
       if (res.ok) {
+        clientCache.delete("/api/admin/users");
         setSuccessMessage(`User status changed to ${nextStatus}.`);
         fetchUsers();
       } else {
@@ -176,6 +186,7 @@ export const AdminAccessView: React.FC = () => {
       });
       const data = await res.json();
       if (res.ok) {
+        clientCache.delete("/api/admin/users");
         setSuccessMessage(data.message || `User ${deletingUser.name} deleted successfully.`);
         fetchUsers();
       } else {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import Company from "@/lib/models/Company";
 import { extractTokenFromRequest, verifyToken, requireAdminAuth } from "@/lib/auth";
+import { serverCache, buildCacheKey } from "@/lib/cache";
 
 export async function GET(request: Request) {
   try {
@@ -20,9 +21,27 @@ export async function GET(request: Request) {
     const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "12", 10), 1), 100);
     const page = Math.max(parseInt(searchParams.get("page") || "1", 10), 1);
 
+    const cacheKey = buildCacheKey("companies:query", {
+      q: query,
+      category,
+      lender,
+      limit,
+      page,
+    });
+
+    const cachedData = serverCache.get(cacheKey);
+    if (cachedData) {
+      return NextResponse.json(cachedData, {
+        headers: {
+          "X-Cache": "HIT",
+          "Cache-Control": "private, max-age=60, stale-while-revalidate=120",
+        },
+      });
+    }
+
     await connectToDatabase();
 
-    const filter: any = {
+    const filter: Record<string, unknown> = {
       isDeleted: { $ne: true },
     };
 
@@ -40,17 +59,33 @@ export async function GET(request: Request) {
     }
 
     const skip = (page - 1) * limit;
-    const totalCount = await Company.countDocuments({ isDeleted: { $ne: true } });
-    const hasFilter = Boolean(query.trim() || (category && category.toLowerCase() !== "all") || (lender && lender.toLowerCase() !== "all"));
+    const hasFilter = Boolean(
+      query.trim() ||
+        (category && category.toLowerCase() !== "all") ||
+        (lender && lender.toLowerCase() !== "all")
+    );
+
+    // Fast cached total active count
+    const totalCount = await serverCache.getOrSet(
+      "companies:totalCount",
+      () => Company.countDocuments({ isDeleted: { $ne: true } }),
+      600,
+      "companies"
+    );
 
     const [companies, matchedCount] = await Promise.all([
-      Company.find(filter).sort({ name: 1 }).skip(skip).limit(limit).lean(),
+      Company.find(filter)
+        .select("name industry category lenderCategories minSalary remarks createdAt")
+        .sort({ name: 1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
       hasFilter ? Company.countDocuments(filter) : totalCount,
     ]);
 
     const totalPages = Math.max(1, Math.ceil(matchedCount / limit));
 
-    return NextResponse.json({
+    const responsePayload = {
       success: true,
       companies,
       totalCount,
@@ -59,6 +94,15 @@ export async function GET(request: Request) {
       page,
       limit,
       totalPages,
+    };
+
+    serverCache.set(cacheKey, responsePayload, 300, "companies");
+
+    return NextResponse.json(responsePayload, {
+      headers: {
+        "X-Cache": "MISS",
+        "Cache-Control": "private, max-age=60, stale-while-revalidate=120",
+      },
     });
   } catch (error: any) {
     console.error("API /api/companies error:", error);
@@ -82,6 +126,8 @@ export async function POST(request: Request) {
     // Check if bulk import or single item
     if (Array.isArray(body)) {
       const created = await Company.insertMany(body, { ordered: false });
+      serverCache.invalidateGroup("companies");
+      serverCache.invalidateGroup("recycle");
       return NextResponse.json({
         success: true,
         message: `Successfully imported ${created.length} companies`,
@@ -104,6 +150,9 @@ export async function POST(request: Request) {
     };
 
     const newCompany = await Company.create(companyData);
+    serverCache.invalidateGroup("companies");
+    serverCache.invalidateGroup("recycle");
+
     return NextResponse.json({
       success: true,
       message: `Company "${newCompany.name}" added successfully`,
@@ -167,6 +216,8 @@ export async function PUT(request: Request) {
     }
 
     await company.save();
+    serverCache.invalidateGroup("companies");
+    serverCache.invalidateGroup("recycle");
 
     return NextResponse.json({
       success: true,
@@ -227,6 +278,9 @@ export async function DELETE(request: Request) {
         { status: 404 }
       );
     }
+
+    serverCache.invalidateGroup("companies");
+    serverCache.invalidateGroup("recycle");
 
     return NextResponse.json({
       success: true,

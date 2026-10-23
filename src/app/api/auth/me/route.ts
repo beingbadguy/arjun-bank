@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import User from "@/lib/models/User";
 import { extractTokenFromRequest, verifyToken } from "@/lib/auth";
+import { serverCache } from "@/lib/cache";
 
 export async function GET(request: Request) {
   try {
@@ -22,8 +23,19 @@ export async function GET(request: Request) {
       );
     }
 
+    const cacheKey = `user:session:${payload.userId}`;
+    const cachedUser = serverCache.get(cacheKey);
+    if (cachedUser) {
+      return NextResponse.json(cachedUser, {
+        headers: {
+          "X-Cache": "HIT",
+          "Cache-Control": "private, max-age=30",
+        },
+      });
+    }
+
     await connectToDatabase();
-    const user = await User.findById(payload.userId).select("-password");
+    const user = await User.findById(payload.userId).select("-password").lean();
 
     if (!user) {
       return NextResponse.json(
@@ -39,7 +51,7 @@ export async function GET(request: Request) {
       );
     }
 
-    return NextResponse.json({
+    const responsePayload = {
       success: true,
       user: {
         id: user._id,
@@ -49,6 +61,15 @@ export async function GET(request: Request) {
         status: user.status,
         lastLogin: user.lastLogin,
         createdAt: user.createdAt,
+      },
+    };
+
+    serverCache.set(cacheKey, responsePayload, 60, "users");
+
+    return NextResponse.json(responsePayload, {
+      headers: {
+        "X-Cache": "MISS",
+        "Cache-Control": "private, max-age=30",
       },
     });
   } catch (error: any) {

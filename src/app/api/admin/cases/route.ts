@@ -259,14 +259,6 @@ export async function GET(request: Request) {
       );
     }
 
-    await connectToDatabase();
-
-    const count = await CaseEntry.countDocuments();
-    if (count === 0) {
-      // Seed with spreadsheet data if empty
-      await CaseEntry.insertMany(INITIAL_CASES_SEED);
-    }
-
     const { searchParams } = new URL(request.url);
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
     const limitParam = searchParams.get("limit");
@@ -276,6 +268,33 @@ export async function GET(request: Request) {
     const search = (searchParams.get("search") || "").trim();
     const status = (searchParams.get("status") || "ALL").trim().toUpperCase();
     const bank = (searchParams.get("bank") || "ALL").trim();
+
+    const { serverCache, buildCacheKey } = await import("@/lib/cache");
+    const cacheKey = buildCacheKey("cases:query", {
+      search,
+      status,
+      bank,
+      page,
+      limit,
+    });
+
+    const cachedData = serverCache.get(cacheKey);
+    if (cachedData) {
+      return NextResponse.json(cachedData, {
+        headers: {
+          "X-Cache": "HIT",
+          "Cache-Control": "private, max-age=30, stale-while-revalidate=60",
+        },
+      });
+    }
+
+    await connectToDatabase();
+
+    const count = await CaseEntry.countDocuments();
+    if (count === 0) {
+      // Seed with spreadsheet data if empty
+      await CaseEntry.insertMany(INITIAL_CASES_SEED);
+    }
 
     // Build MongoDB Filter Query
     const query: any = {
@@ -318,26 +337,50 @@ export async function GET(request: Request) {
 
     const totalPages = isAll ? 1 : Math.max(1, Math.ceil(totalMatching / limit));
 
-    // 3. Database Statistics across all active records in DB
-    const allCasesForStats = await CaseEntry.find({ isDeleted: { $ne: true } }, "status approvedAmount bankName").lean();
-    const totalAll = allCasesForStats.length;
-    const disbursed = allCasesForStats.filter((c: any) => c.status === "DISBURSED");
-    const login = allCasesForStats.filter((c: any) => c.status === "LOGIN");
-    const hold = allCasesForStats.filter((c: any) => c.status === "HOLD");
-    const rejected = allCasesForStats.filter((c: any) => c.status === "REJECTED");
-    const approved = allCasesForStats.filter((c: any) => c.status === "APPROVED");
-    const cancelled = allCasesForStats.filter((c: any) => c.status === "CANCELLED");
+    // 3. Database Statistics cached for speed
+    const statsData = await serverCache.getOrSet(
+      "cases:stats",
+      async () => {
+        const allCasesForStats = await CaseEntry.find(
+          { isDeleted: { $ne: true } },
+          "status approvedAmount bankName"
+        ).lean();
+        const totalAll = allCasesForStats.length;
+        const disbursed = allCasesForStats.filter((c: any) => c.status === "DISBURSED");
+        const login = allCasesForStats.filter((c: any) => c.status === "LOGIN");
+        const hold = allCasesForStats.filter((c: any) => c.status === "HOLD");
+        const rejected = allCasesForStats.filter((c: any) => c.status === "REJECTED");
+        const approved = allCasesForStats.filter((c: any) => c.status === "APPROVED");
+        const cancelled = allCasesForStats.filter((c: any) => c.status === "CANCELLED");
 
-    const totalDisbursedAmt = disbursed.reduce(
-      (sum: number, c: any) => sum + (c.approvedAmount || 0),
-      0
+        const totalDisbursedAmt = disbursed.reduce(
+          (sum: number, c: any) => sum + (c.approvedAmount || 0),
+          0
+        );
+
+        const uniqueBanks = Array.from(
+          new Set(allCasesForStats.map((c: any) => c.bankName).filter(Boolean))
+        ).sort();
+
+        return {
+          stats: {
+            total: totalAll,
+            disbursedCount: disbursed.length,
+            disbursedAmt: totalDisbursedAmt,
+            loginCount: login.length,
+            holdCount: hold.length,
+            rejectedCount: rejected.length,
+            approvedCount: approved.length,
+            cancelledCount: cancelled.length,
+          },
+          uniqueBanks,
+        };
+      },
+      180,
+      "cases"
     );
 
-    const uniqueBanks = Array.from(
-      new Set(allCasesForStats.map((c: any) => c.bankName).filter(Boolean))
-    ).sort();
-
-    return NextResponse.json({
+    const responsePayload = {
       success: true,
       cases,
       pagination: {
@@ -348,17 +391,17 @@ export async function GET(request: Request) {
         hasPrevPage: page > 1,
         hasNextPage: page < totalPages,
       },
-      stats: {
-        total: totalAll,
-        disbursedCount: disbursed.length,
-        disbursedAmt: totalDisbursedAmt,
-        loginCount: login.length,
-        holdCount: hold.length,
-        rejectedCount: rejected.length,
-        approvedCount: approved.length,
-        cancelledCount: cancelled.length,
+      stats: statsData.stats,
+      uniqueBanks: statsData.uniqueBanks,
+    };
+
+    serverCache.set(cacheKey, responsePayload, 120, "cases");
+
+    return NextResponse.json(responsePayload, {
+      headers: {
+        "X-Cache": "MISS",
+        "Cache-Control": "private, max-age=30, stale-while-revalidate=60",
       },
-      uniqueBanks,
     });
   } catch (error: any) {
     return NextResponse.json(
@@ -427,6 +470,10 @@ export async function POST(request: Request) {
       lastUpdateDate: new Date(),
       createdBy: authCheck.payload?.email || "superadmin",
     });
+
+    const { serverCache } = await import("@/lib/cache");
+    serverCache.invalidateGroup("cases");
+    serverCache.invalidateGroup("recycle");
 
     return NextResponse.json(
       {

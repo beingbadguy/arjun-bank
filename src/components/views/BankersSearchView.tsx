@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { useWorkspaceStore } from "@/store/useWorkspaceStore";
 import { useAuthStore } from "@/store/useAuthStore";
+import { clientCache } from "@/lib/clientCache";
 import {
   parseBankersCsv,
   downloadSampleCsvTemplate,
@@ -208,8 +209,15 @@ export const BankersSearchView: React.FC = () => {
   const [fileName, setFileName] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load Bankers from API
+  // Load Bankers from API with instant client cache
   const fetchBankers = async () => {
+    const cached = clientCache.get<any>("/api/bankers");
+    if (cached && cached.success && Array.isArray(cached.bankers)) {
+      setBankers(cached.bankers.length > 0 ? cached.bankers : INITIAL_FALLBACK_DEMO_BANKERS);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     try {
       const headers: Record<string, string> = {};
@@ -217,12 +225,9 @@ export const BankersSearchView: React.FC = () => {
       if (activeToken) {
         headers["Authorization"] = `Bearer ${activeToken}`;
       }
-      const res = await fetch("/api/bankers", { headers });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && Array.isArray(data.bankers)) {
-          setBankers(data.bankers.length > 0 ? data.bankers : INITIAL_FALLBACK_DEMO_BANKERS);
-        }
+      const data = await clientCache.fetchWithCache<any>("/api/bankers", { headers }, 300);
+      if (data && data.success && Array.isArray(data.bankers)) {
+        setBankers(data.bankers.length > 0 ? data.bankers : INITIAL_FALLBACK_DEMO_BANKERS);
       } else {
         setBankers((prev) => (prev.length > 0 ? prev : INITIAL_FALLBACK_DEMO_BANKERS));
       }
@@ -539,6 +544,7 @@ export const BankersSearchView: React.FC = () => {
         });
         const data = await res.json();
         if (res.ok && data.success) {
+          clientCache.invalidate("/api/bankers");
           setBankers((prev) => [data.banker, ...prev]);
           setStatusMessage(`Banker record "${formName}" created successfully!`);
           setIsModalOpen(false);
@@ -554,6 +560,7 @@ export const BankersSearchView: React.FC = () => {
         });
         const data = await res.json();
         if (res.ok && data.success) {
+          clientCache.invalidate("/api/bankers");
           setBankers((prev) =>
             prev.map((b) => ((b._id || b.id) === editingId ? data.banker : b))
           );
@@ -594,6 +601,7 @@ export const BankersSearchView: React.FC = () => {
       });
       const data = await res.json();
       if (res.ok && data.success) {
+        clientCache.invalidate("/api/bankers");
         setBankers((prev) => prev.filter((b) => (b._id || b.id) !== id));
         setStatusMessage(`Deleted banker record for "${deletingBanker.name}".`);
       } else {
@@ -628,6 +636,7 @@ export const BankersSearchView: React.FC = () => {
       });
       const data = await res.json();
       if (res.ok && data.success) {
+        clientCache.invalidate("/api/bankers");
         setBankers([]);
         setStatusMessage(data.message || "All banker records have been deleted.");
       } else {

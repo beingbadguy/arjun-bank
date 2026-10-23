@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useWorkspaceStore } from "@/store/useWorkspaceStore";
 import { useAuthStore } from "@/store/useAuthStore";
+import { clientCache } from "@/lib/clientCache";
 
 const TSV_SOURCE_URL = "pin_download.tsv";
 
@@ -102,7 +103,7 @@ export const DataUpdateView: React.FC = () => {
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
       const [compRes, pinRes] = await Promise.all([
-        fetch("/api/companies", { headers }),
+        fetch("/api/companies?limit=1", { headers }),
         fetch("/api/pincodes?limit=1", { headers }),
       ]);
       const compData = await compRes.json();
@@ -140,6 +141,7 @@ export const DataUpdateView: React.FC = () => {
       });
       const data = await res.json();
       if (res.ok && data.success) {
+        clientCache.clear();
         setStatusMessage(
           `Extracted ${data.totalRows?.toLocaleString() || "187,457"} rows and synchronized ${data.totalPincodes?.toLocaleString() || "30,630"} PIN codes into MongoDB in ${(data.durationMs / 1000).toFixed(1)}s!`
         );
@@ -166,6 +168,7 @@ export const DataUpdateView: React.FC = () => {
       });
       const data = await res.json();
       if (res.ok && data.success) {
+        clientCache.clear();
         setStatusMessage(
           `Extracted ${data.totalRows?.toLocaleString() || "762,389"} rows and synchronized ${data.totalCompanies?.toLocaleString() || "343,169"} companies into MongoDB in ${(data.durationMs / 1000).toFixed(1)}s!`
         );
@@ -201,6 +204,7 @@ export const DataUpdateView: React.FC = () => {
       });
       const data = await res.json();
       if (res.ok) {
+        clientCache.clear();
         setStatusMessage(`Company "${newCompName}" added successfully.`);
         setNewCompName("");
         setShowAddCompany(false);
@@ -243,6 +247,7 @@ export const DataUpdateView: React.FC = () => {
       });
       const data = await res.json();
       if (res.ok && data.success) {
+        clientCache.clear();
         setStatusMessage(`PIN Code "${newPinCode}" added successfully.`);
         setNewPinCode("");
         setNewPinArea("");

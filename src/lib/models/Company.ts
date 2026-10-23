@@ -82,6 +82,12 @@ CompanySchema.index({ category: 1 });
 CompanySchema.index({ "lenderCategories.lender": 1 });
 CompanySchema.index({ name: "text" });
 
+// High-speed compound indexes for filtered queries & soft-deletion
+CompanySchema.index({ isDeleted: 1, name: 1 });
+CompanySchema.index({ isDeleted: 1, category: 1, name: 1 });
+CompanySchema.index({ isDeleted: 1, "lenderCategories.lender": 1 });
+CompanySchema.index({ isDeleted: 1, nameNormalized: 1 });
+
 const Company: Model<ICompany> =
   mongoose.models.Company || mongoose.model<ICompany>("Company", CompanySchema);
 

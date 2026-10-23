@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { useWorkspaceStore } from "@/store/useWorkspaceStore";
 import { useAuthStore } from "@/store/useAuthStore";
+import { clientCache } from "@/lib/clientCache";
 
 interface LenderCoverage {
   lender: string;
@@ -206,32 +207,58 @@ export const PinCodeSearchView: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
   const fetchPinCodes = async (query = "", page = 1) => {
+    let url = `/api/pincodes?limit=12&page=${page}`;
+    const clean = query.trim();
+    if (clean) {
+      if (/^\d+$/.test(clean)) {
+        url += `&pin=${encodeURIComponent(clean)}`;
+      } else {
+        url += `&q=${encodeURIComponent(clean)}`;
+      }
+    }
+
+    // 1. Instant 0ms Cache Hit: If cached locally, render immediately without spinner!
+    const cached = clientCache.get<any>(url);
+    if (cached && cached.success) {
+      setResults(cached.pincodes || []);
+      setTotalCount(cached.totalCount || 30630);
+      setMatchedCount(cached.matchedCount || (cached.pincodes ? cached.pincodes.length : 0));
+      setCurrentPage(cached.page || page);
+      setTotalPages(cached.totalPages || 1);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     try {
-      let url = `/api/pincodes?limit=12&page=${page}`;
-      const clean = query.trim();
-      if (clean) {
-        if (/^\d+$/.test(clean)) {
-          url += `&pin=${encodeURIComponent(clean)}`;
-        } else {
-          url += `&q=${encodeURIComponent(clean)}`;
-        }
-      }
       const headers: Record<string, string> = {};
       if (token) {
         headers["Authorization"] = `Bearer ${token}`;
       }
-      const res = await fetch(url, { headers });
-      const data = await res.json();
-      if (data.success) {
+      const signal = clientCache.getAbortSignal("pin-search");
+      const data = await clientCache.fetchWithCache<any>(url, { headers, signal }, 300);
+      if (data && data.success) {
         setResults(data.pincodes || []);
         setTotalCount(data.totalCount || 30630);
         setMatchedCount(data.matchedCount || data.pincodes.length);
         setCurrentPage(data.page || page);
         setTotalPages(data.totalPages || 1);
+
+        // Background prefetch next page for 0ms pagination click
+        if (page < (data.totalPages || 1)) {
+          let nextUrl = `/api/pincodes?limit=12&page=${page + 1}`;
+          if (clean) {
+            nextUrl += /^\d+$/.test(clean)
+              ? `&pin=${encodeURIComponent(clean)}`
+              : `&q=${encodeURIComponent(clean)}`;
+          }
+          clientCache.fetchWithCache(nextUrl, { headers }, 300).catch(() => {});
+        }
       }
-    } catch (e) {
-      console.error("Failed to fetch pincodes:", e);
+    } catch (e: any) {
+      if (e?.name !== "AbortError") {
+        console.error("Failed to fetch pincodes:", e);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -526,6 +553,7 @@ export const PinCodeSearchView: React.FC = () => {
         });
         const data = await res.json();
         if (res.ok && data.success) {
+          clientCache.invalidate("/api/pincodes");
           setStatusMessage(`PIN Code "${cleanPin}" created successfully.`);
           setIsAddEditModalOpen(false);
           setTotalCount((prev) => prev + 1);
@@ -546,6 +574,7 @@ export const PinCodeSearchView: React.FC = () => {
         });
         const data = await res.json();
         if (res.ok && data.success) {
+          clientCache.invalidate("/api/pincodes");
           setStatusMessage(`PIN Code "${cleanPin}" updated successfully.`);
           setIsAddEditModalOpen(false);
           setResults((prev) =>
@@ -586,6 +615,7 @@ export const PinCodeSearchView: React.FC = () => {
       });
       const data = await res.json();
       if (res.ok && data.success) {
+        clientCache.invalidate("/api/pincodes");
         setStatusMessage(
           `PIN Code "${deletingPin.pincode}" (${deletingPin.city}) deleted successfully.`
         );

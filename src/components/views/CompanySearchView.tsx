@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { useWorkspaceStore } from "@/store/useWorkspaceStore";
 import { useAuthStore } from "@/store/useAuthStore";
+import { clientCache } from "@/lib/clientCache";
 
 interface LenderCategory {
   lender: string;
@@ -147,29 +148,48 @@ export const CompanySearchView: React.FC = () => {
     }
   }, [selectedCompany, isAddEditModalOpen, deletingCompany]);
 
-  // Server-side paginated fetch with category filter support
+  // Server-side paginated fetch with category filter support & instant client caching
   const fetchCompanies = async (query = "", page = 1, cat = "All", limit = 12) => {
+    const categoryParam = cat && cat !== "All" ? `&category=${encodeURIComponent(cat)}` : "";
+    const url = `/api/companies?limit=${limit}&page=${page}&q=${encodeURIComponent(query)}${categoryParam}`;
+
+    // 1. Instant 0ms Cache Hit: If cached locally, render immediately without spinner!
+    const cached = clientCache.get<any>(url);
+    if (cached && cached.success) {
+      setCompanies(cached.companies || []);
+      setTotalCount(cached.totalCount || 0);
+      setMatchedCount(cached.matchedCount || (cached.companies ? cached.companies.length : 0));
+      setCurrentPage(cached.page || page);
+      setTotalPages(cached.totalPages || 1);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const categoryParam = cat && cat !== "All" ? `&category=${encodeURIComponent(cat)}` : "";
       const headers: Record<string, string> = {};
       if (token) {
         headers["Authorization"] = `Bearer ${token}`;
       }
-      const res = await fetch(
-        `/api/companies?limit=${limit}&page=${page}&q=${encodeURIComponent(query)}${categoryParam}`,
-        { headers }
-      );
-      const data = await res.json();
-      if (data.success) {
+      const signal = clientCache.getAbortSignal("company-search");
+      const data = await clientCache.fetchWithCache<any>(url, { headers, signal }, 180);
+      if (data && data.success) {
         setCompanies(data.companies || []);
         setTotalCount(data.totalCount || 0);
         setMatchedCount(data.matchedCount || (data.companies ? data.companies.length : 0));
         setCurrentPage(data.page || page);
         setTotalPages(data.totalPages || 1);
+
+        // Background prefetch next page for 0ms pagination click
+        if (page < (data.totalPages || 1)) {
+          const nextUrl = `/api/companies?limit=${limit}&page=${page + 1}&q=${encodeURIComponent(query)}${categoryParam}`;
+          clientCache.fetchWithCache(nextUrl, { headers }, 180).catch(() => {});
+        }
       }
-    } catch (e) {
-      console.error("Failed to fetch companies:", e);
+    } catch (e: any) {
+      if (e?.name !== "AbortError") {
+        console.error("Failed to fetch companies:", e);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -437,6 +457,7 @@ export const CompanySearchView: React.FC = () => {
         });
         const data = await res.json();
         if (res.ok && data.success) {
+          clientCache.invalidate("/api/companies");
           setStatusMessage(`Company "${formName}" added successfully.`);
           setIsAddEditModalOpen(false);
           fetchCompanies(searchInput, currentPage, selectedCategory, pageSize);
@@ -454,6 +475,7 @@ export const CompanySearchView: React.FC = () => {
         });
         const data = await res.json();
         if (res.ok && data.success) {
+          clientCache.invalidate("/api/companies");
           setStatusMessage(`Company "${formName}" updated successfully.`);
           setIsAddEditModalOpen(false);
           if (selectedCompany && selectedCompany._id === editingCompanyId) {
@@ -496,6 +518,7 @@ export const CompanySearchView: React.FC = () => {
       });
       const data = await res.json();
       if (res.ok && data.success) {
+        clientCache.invalidate("/api/companies");
         setStatusMessage(`Company "${deletingCompany.name}" deleted successfully.`);
         if (selectedCompany && selectedCompany._id === deletingCompany._id) {
           setSelectedCompany(null);

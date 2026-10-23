@@ -69,6 +69,9 @@ const UserSchema: Schema<IUser> = new Schema(
   }
 );
 
+// High-performance compound index for user listing
+UserSchema.index({ isDeleted: 1, createdAt: -1 });
+
 // Prevent mongoose model overwrite in Next.js hot reload
 const User: Model<IUser> =
   mongoose.models.User || mongoose.model<IUser>("User", UserSchema);

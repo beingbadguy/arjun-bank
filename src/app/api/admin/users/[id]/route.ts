@@ -65,6 +65,8 @@ export async function PATCH(
     }
 
     await userToUpdate.save();
+    const { serverCache } = await import("@/lib/cache");
+    serverCache.invalidateGroup("users");
 
     return NextResponse.json({
       success: true,
@@ -122,6 +124,9 @@ export async function DELETE(
     if (!deleted) {
       return NextResponse.json({ error: "User not found or already deleted" }, { status: 404 });
     }
+
+    const { serverCache } = await import("@/lib/cache");
+    serverCache.invalidateGroup("users");
 
     return NextResponse.json({
       success: true,
