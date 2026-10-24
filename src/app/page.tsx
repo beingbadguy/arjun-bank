@@ -18,6 +18,7 @@ import { AdminAccessView } from "@/components/views/AdminAccessView";
 import { CasesVaultView } from "@/components/views/CasesVaultView";
 import { TrainingView } from "@/components/views/TrainingView";
 import { BankersSearchView } from "@/components/views/BankersSearchView";
+import { UtmLinksView } from "@/components/views/UtmLinksView";
 import { SupportDeskModal } from "@/components/modals/SupportDeskModal";
 import { CallingScriptModal } from "@/components/modals/CallingScriptModal";
 import { BenefitsModal } from "@/components/modals/BenefitsModal";
@@ -98,6 +99,8 @@ export default function Home() {
         return <TrainingView />;
       case "bankers-search":
         return <BankersSearchView />;
+      case "utm-links":
+        return <UtmLinksView />;
       default:
         return <OverviewView />;
     }

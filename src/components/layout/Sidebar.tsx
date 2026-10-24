@@ -24,6 +24,8 @@ import {
   ExternalLink,
   Sparkles,
   Code2,
+  Link2,
+  Trash2,
 } from "lucide-react";
 import { useWorkspaceStore, WorkspaceTab } from "@/store/useWorkspaceStore";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -90,6 +92,7 @@ export const Sidebar: React.FC = () => {
       { id: "pdf-tools", label: "PDF tools", icon: <Files size={15} /> },
       { id: "training", label: "Training modules", icon: <GraduationCap size={15} /> },
       { id: "bankers-search", label: "Bankers search", icon: <Landmark size={15} /> },
+      { id: "utm-links", label: "UTM Links", icon: <Link2 size={15} /> },
     ];
 
   const managementNavItems: {
@@ -329,6 +332,24 @@ export const Sidebar: React.FC = () => {
                     Support
                   </span>
                 </button>
+              </li>
+              <li>
+                <a
+                  href="/recycle"
+                  className="w-full flex items-center justify-between py-1.5 px-2 rounded-md text-[12px] font-medium text-[#576558] hover:bg-[#EEF4EB] hover:text-[#17241B] transition-all cursor-pointer"
+                  id="sidebar-recycle-bin-btn"
+                  title="Open Archive & Recycle Bin"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-[#576558]">
+                      <Trash2 size={15} />
+                    </span>
+                    <span>Recycle Bin</span>
+                  </div>
+                  <span className="text-[9px] font-semibold text-[#829283] bg-[#EAF2E8] px-1.5 py-0.5 rounded">
+                    Archive
+                  </span>
+                </a>
               </li>
             </ul>
           </div>

@@ -12,7 +12,8 @@ export type WorkspaceTab =
   | "admin-access"
   | "cases-vault"
   | "training"
-  | "bankers-search";
+  | "bankers-search"
+  | "utm-links";
 
 export const VALID_TABS: WorkspaceTab[] = [
   "overview",
@@ -27,6 +28,7 @@ export const VALID_TABS: WorkspaceTab[] = [
   "cases-vault",
   "training",
   "bankers-search",
+  "utm-links",
 ];
 
 function getInitialTab(): WorkspaceTab {

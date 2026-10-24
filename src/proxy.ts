@@ -22,7 +22,8 @@ export default function proxy(request: NextRequest) {
     pathname === "/api/auth/login" ||
     pathname === "/api/auth/logout" ||
     pathname.startsWith("/api/vault") ||
-    pathname.startsWith("/api/data/verify")
+    pathname.startsWith("/api/data/verify") ||
+    pathname.startsWith("/api/recycle")
   ) {
     return NextResponse.next();
   }

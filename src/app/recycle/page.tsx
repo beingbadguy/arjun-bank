@@ -21,11 +21,12 @@ import {
   Sparkles,
   ExternalLink,
   Info,
+  Link2,
 } from "lucide-react";
 
 import { clientCache } from "@/lib/clientCache";
 
-type SectionType = "bankers" | "pincodes" | "companies" | "cases";
+type SectionType = "bankers" | "pincodes" | "companies" | "cases" | "utmlinks";
 
 interface BankerItem {
   _id: string;
@@ -95,6 +96,17 @@ interface CaseItem {
   deletedBy?: string;
 }
 
+interface UtmLinkItem {
+  _id: string;
+  tagName: string;
+  url: string;
+  category?: string;
+  description?: string;
+  clicks?: number;
+  deletedAt?: string;
+  deletedBy?: string;
+}
+
 export default function RecycleBinPage() {
   const [activeSection, setActiveSection] = useState<SectionType>("bankers");
   const [searchQuery, setSearchQuery] = useState("");
@@ -117,11 +129,13 @@ export default function RecycleBinPage() {
     pincodes: PinCodeItem[];
     companies: CompanyItem[];
     cases: CaseItem[];
+    utmlinks: UtmLinkItem[];
   }>({
     bankers: [],
     pincodes: [],
     companies: [],
     cases: [],
+    utmlinks: [],
   });
 
   const [counts, setCounts] = useState({
@@ -129,6 +143,7 @@ export default function RecycleBinPage() {
     pincodes: 0,
     companies: 0,
     cases: 0,
+    utmlinks: 0,
     total: 0,
   });
 
@@ -136,8 +151,8 @@ export default function RecycleBinPage() {
   const fetchData = async () => {
     const cached = clientCache.get<any>("/api/recycle?section=all");
     if (cached && cached.success) {
-      setData(cached.data || { bankers: [], pincodes: [], companies: [], cases: [] });
-      setCounts(cached.counts || { bankers: 0, pincodes: 0, companies: 0, cases: 0, total: 0 });
+      setData(cached.data || { bankers: [], pincodes: [], companies: [], cases: [], utmlinks: [] });
+      setCounts(cached.counts || { bankers: 0, pincodes: 0, companies: 0, cases: 0, utmlinks: 0, total: 0 });
       setIsLoading(false);
       return;
     }
@@ -147,8 +162,8 @@ export default function RecycleBinPage() {
     try {
       const json = await clientCache.fetchWithCache<any>("/api/recycle?section=all", {}, 60);
       if (json && json.success) {
-        setData(json.data || { bankers: [], pincodes: [], companies: [], cases: [] });
-        setCounts(json.counts || { bankers: 0, pincodes: 0, companies: 0, cases: 0, total: 0 });
+        setData(json.data || { bankers: [], pincodes: [], companies: [], cases: [], utmlinks: [] });
+        setCounts(json.counts || { bankers: 0, pincodes: 0, companies: 0, cases: 0, utmlinks: 0, total: 0 });
       } else {
         setErrorMessage(json?.error || "Failed to load recycle bin data.");
       }
@@ -231,6 +246,18 @@ export default function RecycleBinPage() {
     );
   }, [data.cases, searchQuery]);
 
+  const filteredUtmLinks = useMemo(() => {
+    if (!searchQuery.trim()) return data.utmlinks || [];
+    const q = searchQuery.toLowerCase().trim();
+    return (data.utmlinks || []).filter(
+      (u) =>
+        u.tagName?.toLowerCase().includes(q) ||
+        u.url?.toLowerCase().includes(q) ||
+        u.category?.toLowerCase().includes(q) ||
+        u.description?.toLowerCase().includes(q)
+    );
+  }, [data.utmlinks, searchQuery]);
+
   // Handle Restore
   const handleRestore = async (section: SectionType, id?: string, all?: boolean) => {
     setIsRestoring(true);
@@ -276,6 +303,8 @@ export default function RecycleBinPage() {
         return "Company Search";
       case "cases":
         return "Cases Vault";
+      case "utmlinks":
+        return "UTM Links";
     }
   };
 
@@ -352,7 +381,7 @@ export default function RecycleBinPage() {
           </div>
 
           {/* Stats Bar */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-6 pt-6 border-t border-white/10">
+          <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 mt-6 pt-6 border-t border-white/10">
             <div className="bg-white/5 rounded-xl p-3 border border-white/5">
               <div className="text-[11px] text-[#B8CDB7] font-medium flex items-center gap-1.5">
                 <Trash2 className="w-3.5 h-3.5 text-[#DCE8D7]" />
@@ -416,7 +445,7 @@ export default function RecycleBinPage() {
 
             <div 
               onClick={() => setActiveSection("cases")}
-              className={`rounded-xl p-3 border transition-all cursor-pointer col-span-2 sm:col-span-1 ${
+              className={`rounded-xl p-3 border transition-all cursor-pointer ${
                 activeSection === "cases"
                   ? "bg-white/15 border-white/30 ring-1 ring-white/30"
                   : "bg-white/5 border-white/5 hover:bg-white/10"
@@ -428,6 +457,23 @@ export default function RecycleBinPage() {
               </div>
               <div className="text-xl sm:text-2xl font-bold font-mono text-white mt-1">
                 {counts.cases}
+              </div>
+            </div>
+
+            <div 
+              onClick={() => setActiveSection("utmlinks")}
+              className={`rounded-xl p-3 border transition-all cursor-pointer ${
+                activeSection === "utmlinks"
+                  ? "bg-white/15 border-white/30 ring-1 ring-white/30"
+                  : "bg-white/5 border-white/5 hover:bg-white/10"
+              }`}
+            >
+              <div className="text-[11px] text-[#B8CDB7] font-medium flex items-center gap-1.5">
+                <Link2 className="w-3.5 h-3.5 text-[#DCE8D7]" />
+                UTM Links
+              </div>
+              <div className="text-xl sm:text-2xl font-bold font-mono text-white mt-1">
+                {counts.utmlinks || 0}
               </div>
             </div>
           </div>
@@ -557,6 +603,30 @@ export default function RecycleBinPage() {
                 }`}
               >
                 {counts.cases}
+              </span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveSection("utmlinks");
+                setSearchQuery("");
+              }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+                activeSection === "utmlinks"
+                  ? "bg-[#163A2C] text-[#DCE8D7] shadow-xs"
+                  : "bg-transparent text-[#576558] hover:bg-[#F4F6F0] hover:text-[#17241B]"
+              }`}
+            >
+              <Link2 className="w-3.5 h-3.5" />
+              <span>UTM Links</span>
+              <span
+                className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
+                  activeSection === "utmlinks"
+                    ? "bg-[#DCE8D7] text-[#163A2C]"
+                    : "bg-[#E3EDE0] text-[#163A2C]"
+                }`}
+              >
+                {counts.utmlinks || 0}
               </span>
             </button>
           </div>
@@ -1020,6 +1090,92 @@ export default function RecycleBinPage() {
                           >
                             <RotateCcw className="w-3 h-3" />
                             <span>Restore to Vault</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* SECTION 5: UTM LINKS */}
+            {activeSection === "utmlinks" && (
+              <div>
+                {filteredUtmLinks.length === 0 ? (
+                  <EmptyRecycleState
+                    sectionTitle="UTM Links"
+                    hasSearch={Boolean(searchQuery)}
+                    onClearSearch={() => setSearchQuery("")}
+                  />
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredUtmLinks.map((u) => (
+                      <div
+                        key={u._id}
+                        className="bg-white rounded-2xl border border-[#E3EBE0] p-5 shadow-2xs hover:shadow-xs hover:border-[#D0DFC9] transition-all flex flex-col justify-between"
+                      >
+                        <div className="space-y-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <span className="inline-block px-2.5 py-0.5 rounded-md text-[11px] font-bold tracking-wide uppercase bg-[#E3EDE0] text-[#163A2C] border border-[#D0DFC9] truncate max-w-full">
+                                {u.tagName}
+                              </span>
+                              <div className="text-xs font-semibold text-[#576558] mt-1.5 truncate">
+                                {u.category || "Poonawalla Fincorp"}
+                              </div>
+                            </div>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#FDF2F2] text-[#B42318] border border-[#F8D7DA] shrink-0">
+                              Archived
+                            </span>
+                          </div>
+
+                          {/* URL Preview */}
+                          <div className="p-2.5 rounded-xl bg-[#F4F6F0] border border-[#E3EBE0] space-y-1">
+                            <div className="text-[10px] font-bold text-[#829283] uppercase tracking-wider flex items-center gap-1">
+                              <ExternalLink className="w-3 h-3 text-[#163A2C]" />
+                              <span>Destination Link</span>
+                            </div>
+                            <a
+                              href={u.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs font-mono text-[#163A2C] hover:underline break-all block line-clamp-2"
+                              title={u.url}
+                            >
+                              {u.url}
+                            </a>
+                          </div>
+
+                          {u.description && (
+                            <p className="text-[11px] text-[#829283] italic border-l-2 border-[#DCE8D7] pl-2 line-clamp-2">
+                              &ldquo;{u.description}&rdquo;
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Footer Deletion Info & Restore button */}
+                        <div className="pt-4 mt-4 border-t border-[#ECEFE9] flex items-center justify-between gap-2">
+                          <div className="text-[10px] text-[#829283] flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            <span>{formatDate(u.deletedAt)}</span>
+                          </div>
+
+                          <button
+                            onClick={() =>
+                              setConfirmModal({
+                                isOpen: true,
+                                type: "single",
+                                section: "utmlinks",
+                                id: u._id,
+                                title: `Restore UTM Link "${u.tagName}"`,
+                              })
+                            }
+                            disabled={isRestoring}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#163A2C] text-[#DCE8D7] hover:bg-[#102B21] transition-all cursor-pointer shadow-2xs"
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                            <span>Restore to App</span>
                           </button>
                         </div>
                       </div>

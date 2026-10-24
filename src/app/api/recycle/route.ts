@@ -4,6 +4,7 @@ import Banker from "@/lib/models/Banker";
 import PinCode from "@/lib/models/PinCode";
 import Company from "@/lib/models/Company";
 import CaseEntry from "@/lib/models/CaseEntry";
+import UtmLink from "@/lib/models/UtmLink";
 import { serverCache, buildCacheKey } from "@/lib/cache";
 
 // GET /api/recycle - Fetch all soft-deleted items across sections
@@ -28,11 +29,12 @@ export async function GET(request: Request) {
     await connectToDatabase();
 
     // 1. Fetch counts
-    const [bankersCount, pincodesCount, companiesCount, casesCount] = await Promise.all([
+    const [bankersCount, pincodesCount, companiesCount, casesCount, utmLinksCount] = await Promise.all([
       Banker.countDocuments({ isDeleted: true }),
       PinCode.countDocuments({ isDeleted: true }),
       Company.countDocuments({ isDeleted: true }),
       CaseEntry.countDocuments({ isDeleted: true }),
+      UtmLink.countDocuments({ isDeleted: true }),
     ]);
 
     const counts = {
@@ -40,7 +42,8 @@ export async function GET(request: Request) {
       pincodes: pincodesCount,
       companies: companiesCount,
       cases: casesCount,
-      total: bankersCount + pincodesCount + companiesCount + casesCount,
+      utmlinks: utmLinksCount,
+      total: bankersCount + pincodesCount + companiesCount + casesCount + utmLinksCount,
     };
 
     // 2. Fetch records according to section
@@ -48,11 +51,13 @@ export async function GET(request: Request) {
     let pincodes: any[] = [];
     let companies: any[] = [];
     let cases: any[] = [];
+    let utmlinks: any[] = [];
 
     const fetchBankers = section === "all" || section === "bankers";
     const fetchPincodes = section === "all" || section === "pincodes";
     const fetchCompanies = section === "all" || section === "companies";
     const fetchCases = section === "all" || section === "cases";
+    const fetchUtmLinks = section === "all" || section === "utmlinks";
 
     const promises: Promise<any>[] = [];
 
@@ -96,6 +101,17 @@ export async function GET(request: Request) {
           .lean()
           .then((res) => {
             cases = res;
+          })
+      );
+    }
+
+    if (fetchUtmLinks) {
+      promises.push(
+        UtmLink.find({ isDeleted: true })
+          .sort({ deletedAt: -1, updatedAt: -1 })
+          .lean()
+          .then((res) => {
+            utmlinks = res;
           })
       );
     }
@@ -147,6 +163,16 @@ export async function GET(request: Request) {
             cs.applicationNo?.toLowerCase().includes(search)
         );
       }
+
+      if (utmlinks.length > 0) {
+        utmlinks = utmlinks.filter(
+          (u) =>
+            u.tagName?.toLowerCase().includes(search) ||
+            u.url?.toLowerCase().includes(search) ||
+            u.category?.toLowerCase().includes(search) ||
+            u.description?.toLowerCase().includes(search)
+        );
+      }
     }
 
     const responsePayload = {
@@ -157,6 +183,7 @@ export async function GET(request: Request) {
         pincodes,
         companies,
         cases,
+        utmlinks,
       },
     };
 
@@ -191,9 +218,9 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!section || !["bankers", "pincodes", "companies", "cases"].includes(section.toLowerCase())) {
+    if (!section || !["bankers", "pincodes", "companies", "cases", "utmlinks"].includes(section.toLowerCase())) {
       return NextResponse.json(
-        { error: "Valid section (bankers, pincodes, companies, cases) is required." },
+        { error: "Valid section (bankers, pincodes, companies, cases, utmlinks) is required." },
         { status: 400 }
       );
     }
@@ -218,6 +245,9 @@ export async function POST(request: Request) {
         count = res.modifiedCount;
       } else if (sec === "cases") {
         const res = await CaseEntry.updateMany({ isDeleted: true }, { $set: restoreFields });
+        count = res.modifiedCount;
+      } else if (sec === "utmlinks") {
+        const res = await UtmLink.updateMany({ isDeleted: true }, { $set: restoreFields });
         count = res.modifiedCount;
       }
 
@@ -253,6 +283,9 @@ export async function POST(request: Request) {
     } else if (sec === "cases") {
       restoredDoc = await CaseEntry.findByIdAndUpdate(id, { $set: restoreFields }, { new: true });
       label = restoredDoc ? `Case "${restoredDoc.name}" (${restoredDoc.customerId})` : "";
+    } else if (sec === "utmlinks") {
+      restoredDoc = await UtmLink.findByIdAndUpdate(id, { $set: restoreFields }, { new: true });
+      label = restoredDoc ? `UTM Link "${restoredDoc.tagName}"` : "";
     }
 
     if (!restoredDoc) {

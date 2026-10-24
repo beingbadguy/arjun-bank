@@ -15,6 +15,7 @@ import {
   Headphones,
   PhoneCall,
   FolderLock,
+  Link2,
 } from "lucide-react";
 import { useWorkspaceStore } from "@/store/useWorkspaceStore";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -362,11 +363,8 @@ export const OverviewView: React.FC = () => {
         </div>
       </div>
 
-      {/* Telecaller Script, Support Desk & Cases Vault Quick Cards */}
-      <div
-        className={`grid grid-cols-1 ${isSuperadmin ? "md:grid-cols-3" : "md:grid-cols-2"
-          } gap-3.5 mb-6`}
-      >
+      {/* Telecaller Script, Support Desk & UTM Links Quick Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 mb-6">
         {/* Calling Script Card */}
         <div className="bg-white border border-[#DCE4D9] hover:border-[#2563EB]/40 rounded-xl p-4 flex flex-col justify-between transition-all hover:-translate-y-0.5 shadow-2xs group">
           <div>
@@ -392,6 +390,35 @@ export const OverviewView: React.FC = () => {
             id="overview-open-script-btn"
           >
             <span>Open practice window</span>
+            <span>→</span>
+          </button>
+        </div>
+
+        {/* UTM Links Quick Card */}
+        <div className="bg-white border border-[#DCE4D9] hover:border-[#163A2C]/40 rounded-xl p-4 flex flex-col justify-between transition-all hover:-translate-y-0.5 shadow-2xs group">
+          <div>
+            <div className="flex items-center justify-between mb-2.5">
+              <div className="w-8 h-8 rounded-lg bg-[#E3EDE0] text-[#163A2C] flex items-center justify-center">
+                <Link2 size={16} />
+              </div>
+              <span className="text-[10px] font-bold text-[#163A2C] bg-[#EAF2E8] px-2 py-0.5 rounded-full uppercase tracking-wider">
+                UTM Links
+              </span>
+            </div>
+            <h3 className="text-sm font-bold tracking-tight text-[#17241B] mb-1">
+              DSA &amp; Campaign Links
+            </h3>
+            <p className="text-xs text-[#576558] leading-relaxed mb-3">
+              Instant access to Poonawalla Fincorp &amp; partner DSA links. Click to open in a new tab.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab("utm-links")}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#163A2C] group-hover:gap-2 transition-all cursor-pointer w-fit"
+            id="overview-open-utm-links-btn"
+          >
+            <span>View UTM Links</span>
             <span>→</span>
           </button>
         </div>
